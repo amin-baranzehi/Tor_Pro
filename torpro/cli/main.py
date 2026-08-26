@@ -5,6 +5,7 @@ import sys
 import time
 
 from torpro import __app_name__, __version__
+from torpro.bridges.fetcher import BridgeFetcher
 from torpro.bridges.manager import BridgeManager
 from torpro.core.constants import (
     AnsiColor,
@@ -109,6 +110,25 @@ def cmd_status(args) -> int:
     return 0
 
 
+def cmd_fetch(args) -> int:
+    """Fetch fresh bridges via unblocked relay."""
+    Logger.print_banner()
+    transport = getattr(args, "transport", "obfs4") or "obfs4"
+    Logger.info(f"Fetching fresh {transport.upper()} bridges via unblocked HTTP relay...")
+
+    result = BridgeFetcher.fetch_via_httpdebugger(transport=transport)
+    if result.success and result.bridges:
+        saved_file = BridgeFetcher.update_custom_bridges_file(result.bridges)
+        Logger.success(f"Fetched {len(result.bridges)} fresh {transport.upper()} bridge(s) via {result.source}!")
+        for b in result.bridges:
+            print(f"  {AnsiColor.BRIGHT_CYAN}-> {b}{AnsiColor.RESET}")
+        print(f"\n{AnsiColor.GREEN}[OK] Saved to {saved_file.name}{AnsiColor.RESET}")
+        return 0
+    else:
+        Logger.error(f"Failed to fetch bridges automatically: {result.error}")
+        return 1
+
+
 def cmd_doctor(args) -> int:
     """Run all 5 diagnostic tests."""
     Logger.print_banner()
@@ -199,6 +219,11 @@ def build_parser() -> argparse.ArgumentParser:
     # status
     p_status = subparsers.add_parser("status", help="Show running status and ports")
     p_status.set_defaults(func=cmd_status)
+
+    # fetch
+    p_fetch = subparsers.add_parser("fetch", help="Fetch fresh Obfs4/WebTunnel bridges via unblocked relay")
+    p_fetch.add_argument("transport", nargs="?", default="obfs4", choices=["obfs4", "webtunnel"], help="Transport type")
+    p_fetch.set_defaults(func=cmd_fetch)
 
     # doctor
     p_doctor = subparsers.add_parser("doctor", help="Run 5 diagnostic health checks")

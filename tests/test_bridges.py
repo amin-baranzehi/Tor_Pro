@@ -1,14 +1,17 @@
-"""Unit tests for the bridge strategy patterns and configuration manager."""
+"""Unit tests for the bridge strategy patterns, fetcher, and configuration manager."""
 
 from pathlib import Path
+from unittest.mock import patch
 import unittest
 
 from torpro.bridges.direct import DirectStrategy
+from torpro.bridges.fetcher import BridgeFetcher
 from torpro.bridges.manager import BridgeManager
 from torpro.bridges.obfs4 import Obfs4Strategy
 from torpro.bridges.snowflake import SnowflakeStrategy
 from torpro.bridges.webtunnel import WebTunnelStrategy
 from torpro.core.constants import TORRC_PATH
+from torpro.core.exceptions import ConfigError
 
 
 class TestBridgeStrategies(unittest.TestCase):
@@ -23,8 +26,8 @@ class TestBridgeStrategies(unittest.TestCase):
         self.assertIn("snowflake-client", content)
         self.assertIn("Bridge snowflake", content)
 
-    def test_obfs4_strategy(self):
-        """Test Obfs4 strategy."""
+    def test_obfs4_strategy_with_custom(self):
+        """Test Obfs4 strategy with valid bridges."""
         custom = ["Bridge obfs4 1.2.3.4:443 123456 cert=abc iat-mode=0"]
         strategy = Obfs4Strategy(custom_bridges=custom)
         lines = strategy.generate_config_lines()
@@ -33,8 +36,15 @@ class TestBridgeStrategies(unittest.TestCase):
         self.assertIn("ClientTransportPlugin obfs4", content)
         self.assertIn("1.2.3.4:443", content)
 
-    def test_webtunnel_strategy(self):
-        """Test WebTunnel strategy."""
+    def test_obfs4_strategy_empty_raises_config_error(self):
+        """Test Obfs4 strategy raises ConfigError when bridges list is empty."""
+        with patch.object(Obfs4Strategy, "_load_bridges", return_value=[]):
+            strategy = Obfs4Strategy()
+            with self.assertRaises(ConfigError):
+                strategy.generate_config_lines()
+
+    def test_webtunnel_strategy_with_custom(self):
+        """Test WebTunnel strategy with custom bridges."""
         custom = ["Bridge webtunnel 1.2.3.4:443 123456 url=https://example.com/xyz"]
         strategy = WebTunnelStrategy(custom_bridges=custom)
         lines = strategy.generate_config_lines()
@@ -56,6 +66,17 @@ class TestBridgeStrategies(unittest.TestCase):
         self.assertTrue(TORRC_PATH.exists())
         self.assertIn("SocksPort", generated)
         self.assertIn("snowflake", generated)
+
+    def test_bridge_fetcher_regex(self):
+        """Test regex parsing of bridge lines."""
+        raw_text = (
+            "Here is your bridge:\n"
+            "obfs4 192.0.2.1:8080 AABBCCDDEEFF00112233445566778899AABBCCDD cert=abcdef123456 iat-mode=0\n"
+            "another line"
+        )
+        matches = BridgeFetcher.OBFS4_REGEX.findall(raw_text)
+        self.assertEqual(len(matches), 1)
+        self.assertIn("192.0.2.1:8080", matches[0])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 """Interactive Terminal User Interface (TUI) Dashboard for Tor Pro.
 
 Provides an ASCII banner and clean menu for controlling Tor, switching bridges,
-running doctor diagnostics, toggling system proxy, and inspecting logs.
+fetching fresh Obfs4 bridges, running doctor diagnostics, toggling system proxy,
+and inspecting logs.
 """
 
 import os
@@ -10,6 +11,7 @@ import time
 from typing import Optional
 
 from torpro import __app_name__, __version__
+from torpro.bridges.fetcher import BridgeFetcher
 from torpro.bridges.manager import BridgeManager
 from torpro.core.constants import (
     AnsiColor,
@@ -91,8 +93,9 @@ class TuiDashboard:
         print(f"   {AnsiColor.BRIGHT_BLUE}{AnsiColor.BOLD}[4]{AnsiColor.RESET} Test Tor Connection & Check Exit IP")
         print(f"   {AnsiColor.BRIGHT_MAGENTA}{AnsiColor.BOLD}[5]{AnsiColor.RESET} Run Doctor Health Diagnostics (5 Diagnostic Tests)")
         print(f"   {AnsiColor.BRIGHT_YELLOW}{AnsiColor.BOLD}[6]{AnsiColor.RESET} Toggle Desktop System Proxy (Enable / Disable)")
-        print(f"   {AnsiColor.WHITE}{AnsiColor.BOLD}[7]{AnsiColor.RESET} Add / Manage Custom Bridges (config/custom_bridges.txt)")
-        print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[8]{AnsiColor.RESET} View Live Connection Logs")
+        print(f"   {AnsiColor.GREEN}{AnsiColor.BOLD}[7]{AnsiColor.RESET} Auto-Fetch Fresh Obfs4 / WebTunnel Bridges (Bypass Filtered BridgeDB)")
+        print(f"   {AnsiColor.WHITE}{AnsiColor.BOLD}[8]{AnsiColor.RESET} Manage / Paste Custom Bridges (config/custom_bridges.txt)")
+        print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[9]{AnsiColor.RESET} View Live Connection Logs")
         print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[0]{AnsiColor.RESET} Exit")
         print(f"  {AnsiColor.DIM}{'-' * 70}{AnsiColor.RESET}")
 
@@ -105,7 +108,7 @@ class TuiDashboard:
             self.render_menu()
 
             try:
-                choice = input(f"  {AnsiColor.BOLD}Select an option [0-8]: {AnsiColor.RESET}").strip()
+                choice = input(f"  {AnsiColor.BOLD}Select an option [0-9]: {AnsiColor.RESET}").strip()
             except (KeyboardInterrupt, EOFError):
                 print(f"\n{AnsiColor.DIM}Exiting Tor Pro.{AnsiColor.RESET}")
                 break
@@ -123,8 +126,10 @@ class TuiDashboard:
             elif choice == "6":
                 self._handle_toggle_proxy()
             elif choice == "7":
-                self._handle_custom_bridges()
+                self._handle_auto_fetch()
             elif choice == "8":
+                self._handle_custom_bridges()
+            elif choice == "9":
                 self._handle_logs()
             elif choice == "0" or choice.lower() in ("q", "exit"):
                 print(f"\n{AnsiColor.DIM}Goodbye!{AnsiColor.RESET}")
@@ -163,9 +168,19 @@ class TuiDashboard:
 
             if not has_bridges:
                 print(f"\n{AnsiColor.BRIGHT_YELLOW}Notice: No {selected_mode.upper()} bridge lines found in config/custom_bridges.txt.{AnsiColor.RESET}")
-                print(f"You can obtain fresh bridges from Telegram bot: {AnsiColor.BRIGHT_CYAN}@GetBridgesBot{AnsiColor.RESET} or {AnsiColor.BRIGHT_CYAN}https://bridges.torproject.org{AnsiColor.RESET}")
-                prompt = input(f"\n{AnsiColor.BOLD}Would you like to enter your bridge line(s) now? [y/N]: {AnsiColor.RESET}").strip().lower()
-                if prompt in ("y", "yes"):
+                print(f"Would you like to fetch fresh {selected_mode.upper()} bridges automatically via unblocked relay?")
+                auto = input(f"{AnsiColor.BOLD}Auto-fetch fresh bridges now? [Y/n]: {AnsiColor.RESET}").strip().lower()
+                if auto in ("", "y", "yes"):
+                    fetch_res = BridgeFetcher.fetch_via_httpdebugger(transport=selected_mode)
+                    if fetch_res.success and fetch_res.bridges:
+                        BridgeFetcher.update_custom_bridges_file(fetch_res.bridges)
+                        Logger.success(f"Successfully fetched and saved {len(fetch_res.bridges)} {selected_mode.upper()} bridges!")
+                    else:
+                        Logger.error(f"Auto-fetch failed: {fetch_res.error}")
+                        print(f"You can paste your own bridges or use Snowflake (Option [1]).")
+                        self.pause()
+                        return
+                else:
                     print(f"\n{AnsiColor.BOLD}Paste your bridge lines below (Press Enter on an empty line when done):{AnsiColor.RESET}")
                     new_lines = []
                     while True:
@@ -182,15 +197,42 @@ class TuiDashboard:
                         print(f"{AnsiColor.DIM}No bridges entered. Returning.{AnsiColor.RESET}")
                         self.pause()
                         return
-                else:
-                    print(f"\n{AnsiColor.DIM}Tip: Use Snowflake (Option [1]) which does not require static bridges.{AnsiColor.RESET}")
-                    self.pause()
-                    return
 
         try:
             self.service.start(mode=selected_mode, enable_http_bridge=True)
         except ConfigError as err:
             Logger.error(str(err))
+        self.pause()
+
+    def _handle_auto_fetch(self) -> None:
+        """Fetch fresh Obfs4 or WebTunnel bridges via relay."""
+        self.clear_screen()
+        Logger.print_banner()
+        print("  Auto-Fetch Fresh Bridges (Bypasses BridgeDB Blocking)\n")
+        print("  [1] Fetch Obfs4 Bridges")
+        print("  [2] Fetch WebTunnel Bridges")
+        print("  [0] Back")
+
+        sub = input(f"\n  {AnsiColor.BOLD}Choice [1-2]: {AnsiColor.RESET}").strip()
+        if sub == "1":
+            t = "obfs4"
+        elif sub == "2":
+            t = "webtunnel"
+        else:
+            return
+
+        Logger.info(f"Connecting to unblocked HTTP relay to fetch {t.upper()} bridges...")
+        res = BridgeFetcher.fetch_via_httpdebugger(transport=t)
+        if res.success and res.bridges:
+            saved_file = BridgeFetcher.update_custom_bridges_file(res.bridges, append=False)
+            Logger.success(f"Fetched {len(res.bridges)} fresh {t.upper()} bridge(s) from {res.source}!")
+            print(f"\n{AnsiColor.BOLD}New Bridges:{AnsiColor.RESET}")
+            for b in res.bridges:
+                print(f"  {AnsiColor.BRIGHT_CYAN}-> {b}{AnsiColor.RESET}")
+            print(f"\n{AnsiColor.GREEN}[OK] Saved to {saved_file.name}{AnsiColor.RESET}")
+        else:
+            Logger.error(f"Fetch failed: {res.error}")
+            print(f"\n{AnsiColor.DIM}Tip: You can also get bridges from Telegram bot: @GetBridgesBot{AnsiColor.RESET}")
         self.pause()
 
     def _handle_stop(self) -> None:
