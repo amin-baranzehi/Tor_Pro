@@ -13,9 +13,11 @@ from typing import List, Optional, Tuple
 import urllib.parse
 import urllib.request
 
-from torpro.core.constants import CUSTOM_BRIDGES_FILE
+from torpro.core.constants import CUSTOM_BRIDGES_FILE, LOGS_DIR
 from torpro.core.exceptions import ConfigError
 from torpro.core.logger import Logger
+
+FETCH_DEBUG_LOG = LOGS_DIR / "bridge_fetch_debug.html"
 
 
 @dataclass
@@ -26,6 +28,7 @@ class FetchResult:
     bridges: List[str]
     source: str
     error: Optional[str] = None
+    debug_log_path: Optional[Path] = None
 
 
 class BridgeFetcher:
@@ -45,8 +48,8 @@ class BridgeFetcher:
     )
 
     @classmethod
-    def _parse_bridgelines(cls, raw_html: str, transport: str) -> List[str]:
-        """Extract clean bridge lines from HTML response."""
+    def _parse_bridgelines(cls, raw_html: str, transport: str) -> Tuple[List[str], str]:
+        """Extract clean bridge lines from HTML response and return parsed text."""
         bridges: List[str] = []
 
         # 1. First level: Extract <pre> content if present
@@ -55,7 +58,6 @@ class BridgeFetcher:
 
         # 2. Decode HTML entities (handles &lt;div id=&quot;bridgelines&quot;&gt;, etc.)
         decoded = html.unescape(content_to_decode)
-        # Second pass in case of double-encoding
         if "&lt;" in decoded or "&gt;" in decoded or "&#" in decoded:
             decoded = html.unescape(decoded)
 
@@ -71,7 +73,6 @@ class BridgeFetcher:
         raw_lines = re.split(r"<br\s*/?>|\r?\n", search_scope, flags=re.IGNORECASE)
 
         for line in raw_lines:
-            # Strip tags and spaces
             clean = re.sub(r"<[^>]+>", "", line).strip()
             if not clean:
                 continue
@@ -88,7 +89,7 @@ class BridgeFetcher:
                 if bridge_str not in bridges:
                     bridges.append(bridge_str)
 
-        # Fallback regex over whole decoded text if lines split missed anything
+        # Fallback regex over whole decoded text
         if not bridges:
             regex = cls.WEBTUNNEL_REGEX if transport.lower() == "webtunnel" else cls.OBFS4_REGEX
             for match in regex.finditer(decoded):
@@ -98,11 +99,12 @@ class BridgeFetcher:
                 if b_str not in bridges:
                     bridges.append(b_str)
 
-        return bridges
+        return bridges, decoded
 
     @classmethod
     def fetch_via_httpdebugger(cls, transport: str = "obfs4", timeout: int = 20) -> FetchResult:
-        """Fetch bridges through httpdebugger.com relay."""
+        """Fetch bridges through httpdebugger.com relay with comprehensive debug logging."""
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
         target_url = f"https://bridges.torproject.org/bridges?transport={transport}"
 
         post_data = urllib.parse.urlencode({
@@ -123,9 +125,17 @@ class BridgeFetcher:
 
         try:
             with urllib.request.urlopen(req, timeout=timeout) as response:
+                status_code = response.status
                 raw_html = response.read().decode("utf-8", errors="ignore")
 
-            bridges = cls._parse_bridgelines(raw_html, transport)
+            # Save debug response to file
+            FETCH_DEBUG_LOG.write_text(raw_html, encoding="utf-8")
+
+            bridges, decoded_text = cls._parse_bridgelines(raw_html, transport)
+
+            # Debug log details
+            Logger.debug(f"HTTP Debugger Response: HTTP {status_code} ({len(raw_html)} bytes)")
+            Logger.debug(f"Saved raw HTML to: {FETCH_DEBUG_LOG}")
 
             if bridges:
                 return FetchResult(
@@ -133,25 +143,52 @@ class BridgeFetcher:
                     transport=transport,
                     bridges=bridges,
                     source="httpdebugger.com Relay",
+                    debug_log_path=FETCH_DEBUG_LOG,
                 )
 
-            # Check if Captcha challenge was returned
-            decoded_preview = html.unescape(raw_html[:2000]).lower()
-            if "captcha" in decoded_preview:
+            # Diagnostic checks on decoded text
+            lower_decoded = decoded_text.lower()
+            if "captcha" in lower_decoded or "recaptcha" in lower_decoded or "challenge" in lower_decoded:
+                error_msg = (
+                    "Tor BridgeDB returned a Captcha challenge (Shared IP rate limit).\n"
+                    "  -> BridgeDB requires solving a Captcha when queried frequently from shared proxy IPs.\n"
+                    "  -> To get instant fresh bridges without Captcha, use Telegram bot: @GetBridgesBot."
+                )
                 return FetchResult(
                     success=False,
                     transport=transport,
                     bridges=[],
                     source="httpdebugger.com",
-                    error="Captcha requested by Tor BridgeDB (Server rate limited). Try again in a few minutes.",
+                    error=error_msg,
+                    debug_log_path=FETCH_DEBUG_LOG,
                 )
+
+            if "403 forbidden" in lower_decoded or "access denied" in lower_decoded or "blocked" in lower_decoded:
+                error_msg = "BridgeDB or Relay returned Access Denied / 403 Forbidden."
+                return FetchResult(
+                    success=False,
+                    transport=transport,
+                    bridges=[],
+                    source="httpdebugger.com",
+                    error=error_msg,
+                    debug_log_path=FETCH_DEBUG_LOG,
+                )
+
+            # Extract snippet of decoded text for user visibility
+            preview_snippet = "\n".join([line.strip() for line in decoded_text.splitlines() if line.strip()][:10])
+            error_msg = (
+                f"No bridge lines parsed from response ({len(raw_html)} bytes received).\n"
+                f"  Debug log saved to: {FETCH_DEBUG_LOG}\n"
+                f"  Response preview:\n{preview_snippet}"
+            )
 
             return FetchResult(
                 success=False,
                 transport=transport,
                 bridges=[],
                 source="httpdebugger.com",
-                error="No bridge lines found in response body (BridgeDB might be temporarily empty or rate-limited).",
+                error=error_msg,
+                debug_log_path=FETCH_DEBUG_LOG,
             )
 
         except urllib.error.URLError as err:
@@ -160,7 +197,8 @@ class BridgeFetcher:
                 transport=transport,
                 bridges=[],
                 source="httpdebugger.com",
-                error=f"Connection to relay failed: {err.reason}",
+                error=f"Network error connecting to relay: {err.reason}",
+                debug_log_path=FETCH_DEBUG_LOG,
             )
         except Exception as err:
             return FetchResult(
@@ -168,7 +206,8 @@ class BridgeFetcher:
                 transport=transport,
                 bridges=[],
                 source="httpdebugger.com",
-                error=str(err),
+                error=f"Unexpected fetch error: {err}",
+                debug_log_path=FETCH_DEBUG_LOG,
             )
 
     @classmethod
