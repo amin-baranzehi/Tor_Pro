@@ -3,16 +3,20 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Standalone executable binaries (downloaded via setup.sh)
+# Standalone executable binaries and bundled libraries
 bin/tor
 bin/snowflake-client
 bin/lyrebird
 bin/obfs4proxy
+bin/lib/
 
 # Active runtime configuration and pid files
 torrc
 .tor.pid
 .http_bridge.pid
+
+# Configuration directory (user bridges and base torrc)
+config/
 
 # Session cache and logs (keep folder structure)
 data/*

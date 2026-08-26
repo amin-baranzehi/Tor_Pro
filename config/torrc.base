@@ -1,8 +1,0 @@
-# === Tor Pro Base Configuration ===
-SocksPort 9050
-ControlPort 9051
-DataDirectory /home/amin/Desktop/Portable-Tor-main/data
-PidFile /home/amin/Desktop/Portable-Tor-main/.tor.pid
-Log notice file /home/amin/Desktop/Portable-Tor-main/logs/tor.log
-ClientOnly 1
-SafeLogging 0
