@@ -1,0 +1,250 @@
+"""Interactive Terminal User Interface (TUI) Dashboard for Tor Pro.
+
+Provides an ASCII banner and clean menu for controlling Tor, switching bridges,
+running doctor diagnostics, toggling system proxy, and inspecting logs.
+"""
+
+import os
+import sys
+import time
+from typing import Optional
+
+from torpro import __app_name__, __version__
+from torpro.bridges.manager import BridgeManager
+from torpro.core.constants import (
+    AnsiColor,
+    CUSTOM_BRIDGES_FILE,
+    HTTP_HOST,
+    HTTP_PORT,
+    SOCKS5_HOST,
+    SOCKS5_PORT,
+    TOR_LOG_FILE,
+)
+from torpro.core.logger import Logger
+from torpro.diagnostics.engine import DiagnosticEngine
+from torpro.proxy.http_bridge import HttpBridgeService
+from torpro.proxy.sysproxy import SystemProxyManager
+from torpro.service.connection_tester import ConnectionTester
+from torpro.service.tor_service import BootstrapStatus, TorService
+
+
+class TuiDashboard:
+    """Terminal interactive menu manager."""
+
+    def __init__(self) -> None:
+        self.service = TorService()
+        self.bridge_manager = BridgeManager()
+        self.diagnostics = DiagnosticEngine()
+
+    @staticmethod
+    def clear_screen() -> None:
+        """Clear terminal screen."""
+        os.system("clear" if os.name == "posix" else "cls")
+
+    @staticmethod
+    def pause() -> None:
+        """Wait for user to press Enter before returning to menu."""
+        print(f"\n{AnsiColor.DIM}Press Enter to return to main menu...{AnsiColor.RESET}", end="")
+        try:
+            input()
+        except (KeyboardInterrupt, EOFError):
+            pass
+
+    def render_banner(self) -> None:
+        """Render ASCII banner with author information."""
+        r = AnsiColor.BRIGHT_RED
+        w = AnsiColor.WHITE
+        b = AnsiColor.BRIGHT_BLUE
+        g = AnsiColor.BRIGHT_GREEN
+        y = AnsiColor.BRIGHT_YELLOW
+        p = AnsiColor.BRIGHT_MAGENTA
+        reset = AnsiColor.RESET
+        bold = AnsiColor.BOLD
+
+        banner = f"""{r}{bold}
+  _______ ____  _____    _____  _____   ____  
+ |__   __/ __ \|  __ \  |  __ \|  __ \ / __ \ 
+    | | | |  | | |__) | | |__) | |__) | |  | |
+    | | | |  | |  _  /  |  ___/|  _  /| |  | |
+    | | | |__| | | \ \  | |    | | \ \| |__| |
+    |_|  \____/|_|  \_\ |_|    |_|  \_\\____/ 
+{w}========================================================================{reset}
+  {b}Tor Pro - Professional Anti-Censorship Tor Suite{reset} {y}[v{__version__}]{reset}
+  {g}Author: {y}amin.baranzehi_{reset} | {p}Advanced Privacy & Security Framework{reset}
+{w}========================================================================{reset}"""
+        print(banner)
+
+    def render_status(self) -> None:
+        """Render service status summary."""
+        tor_running = TorService.is_running()
+        tor_pid = TorService.get_pid()
+        http_running = HttpBridgeService.is_running()
+        sysproxy_on = SystemProxyManager.is_gnome_proxy_enabled()
+
+        tor_badge = (
+            f"{AnsiColor.BRIGHT_GREEN}[RUNNING - PID {tor_pid}]{AnsiColor.RESET}"
+            if tor_running
+            else f"{AnsiColor.BRIGHT_RED}[STOPPED]{AnsiColor.RESET}"
+        )
+        http_badge = (
+            f"{AnsiColor.BRIGHT_GREEN}[PORT {HTTP_PORT}]{AnsiColor.RESET}"
+            if http_running
+            else f"{AnsiColor.DIM}[STOPPED]{AnsiColor.RESET}"
+        )
+        proxy_badge = (
+            f"{AnsiColor.BRIGHT_CYAN}[ENABLED]{AnsiColor.RESET}"
+            if sysproxy_on
+            else f"{AnsiColor.DIM}[DISABLED]{AnsiColor.RESET}"
+        )
+
+        print(f"  Tor Core: {tor_badge} | HTTP Proxy: {http_badge} | SysProxy: {proxy_badge}")
+        print(f"  {AnsiColor.DIM}SOCKS5: {SOCKS5_HOST}:{SOCKS5_PORT} | HTTP: http://{HTTP_HOST}:{HTTP_PORT}{AnsiColor.RESET}")
+        print(f"  {AnsiColor.DIM}{'-' * 70}{AnsiColor.RESET}")
+
+    def render_menu(self) -> None:
+        """Render menu options without emojis."""
+        print(f"  {AnsiColor.BOLD}{AnsiColor.BRIGHT_YELLOW}MAIN MENU / MENU ASLI:{AnsiColor.RESET}")
+        print(f"   {AnsiColor.BRIGHT_GREEN}{AnsiColor.BOLD}[1]{AnsiColor.RESET} Start Tor with Snowflake (Default Anti-Censorship)")
+        print(f"   {AnsiColor.BRIGHT_CYAN}{AnsiColor.BOLD}[2]{AnsiColor.RESET} Start Tor with other Bridge (WebTunnel / Obfs4 / Direct)")
+        print(f"   {AnsiColor.BRIGHT_RED}{AnsiColor.BOLD}[3]{AnsiColor.RESET} Stop Tor & Proxy Services")
+        print(f"   {AnsiColor.BRIGHT_BLUE}{AnsiColor.BOLD}[4]{AnsiColor.RESET} Test Tor Connection & Check Exit IP")
+        print(f"   {AnsiColor.BRIGHT_MAGENTA}{AnsiColor.BOLD}[5]{AnsiColor.RESET} Run Doctor Health Diagnostics (5 Diagnostic Tests)")
+        print(f"   {AnsiColor.BRIGHT_YELLOW}{AnsiColor.BOLD}[6]{AnsiColor.RESET} Toggle Desktop System Proxy (Enable / Disable)")
+        print(f"   {AnsiColor.WHITE}{AnsiColor.BOLD}[7]{AnsiColor.RESET} Add / Manage Custom Bridges (config/custom_bridges.txt)")
+        print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[8]{AnsiColor.RESET} View Live Connection Logs")
+        print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[0]{AnsiColor.RESET} Exit")
+        print(f"  {AnsiColor.DIM}{'-' * 70}{AnsiColor.RESET}")
+
+    def run(self) -> None:
+        """Main interaction loop."""
+        while True:
+            self.clear_screen()
+            self.render_banner()
+            self.render_status()
+            self.render_menu()
+
+            try:
+                choice = input(f"  {AnsiColor.BOLD}Select an option [0-8]: {AnsiColor.RESET}").strip()
+            except (KeyboardInterrupt, EOFError):
+                print(f"\n{AnsiColor.DIM}Exiting Tor Pro.{AnsiColor.RESET}")
+                break
+
+            if choice == "1":
+                self._handle_start_snowflake()
+            elif choice == "2":
+                self._handle_select_bridge()
+            elif choice == "3":
+                self._handle_stop()
+            elif choice == "4":
+                self._handle_test()
+            elif choice == "5":
+                self._handle_doctor()
+            elif choice == "6":
+                self._handle_toggle_proxy()
+            elif choice == "7":
+                self._handle_custom_bridges()
+            elif choice == "8":
+                self._handle_logs()
+            elif choice == "0" or choice.lower() in ("q", "exit"):
+                print(f"\n{AnsiColor.DIM}Goodbye!{AnsiColor.RESET}")
+                break
+
+    def _handle_start_snowflake(self) -> None:
+        """Start Tor with default Snowflake transport."""
+        self.clear_screen()
+        Logger.header("Starting Tor Pro (Snowflake Mode)")
+        self.service.start(mode="snowflake", enable_http_bridge=True)
+        self.pause()
+
+    def _handle_select_bridge(self) -> None:
+        """Prompt user for bridge selection."""
+        self.clear_screen()
+        Logger.header("Select Bridge Transport Mode")
+        print("  [1] Snowflake   (WebRTC Ephemeral Proxies - Recommended)")
+        print("  [2] WebTunnel   (HTTPS Traffic Masking)")
+        print("  [3] Obfs4       (Obfuscated Bridge IPs)")
+        print("  [4] Direct      (No Bridge / Direct Tor Network)")
+        print("  [0] Back")
+
+        sub_choice = input(f"\n  {AnsiColor.BOLD}Choice [1-4]: {AnsiColor.RESET}").strip()
+        modes = {"1": "snowflake", "2": "webtunnel", "3": "obfs4", "4": "direct"}
+        selected_mode = modes.get(sub_choice)
+
+        if selected_mode:
+            self.service.start(mode=selected_mode, enable_http_bridge=True)
+        self.pause()
+
+    def _handle_stop(self) -> None:
+        """Stop all processes."""
+        self.clear_screen()
+        Logger.header("Stopping Tor Pro")
+        self.service.stop()
+        self.pause()
+
+    def _handle_test(self) -> None:
+        """Test connection and display IP."""
+        self.clear_screen()
+        ConnectionTester.print_report()
+        self.pause()
+
+    def _handle_doctor(self) -> None:
+        """Execute diagnostic checks."""
+        self.clear_screen()
+        self.diagnostics.run_all(print_report=True)
+        self.pause()
+
+    def _handle_toggle_proxy(self) -> None:
+        """Toggle system proxy."""
+        self.clear_screen()
+        Logger.header("Toggle Desktop System Proxy")
+        current_state = SystemProxyManager.is_gnome_proxy_enabled()
+        if current_state:
+            SystemProxyManager.disable_gnome_proxy()
+            SystemProxyManager.generate_env_script()
+            Logger.info("System proxy has been DISABLED.")
+        else:
+            SystemProxyManager.enable_gnome_proxy()
+            SystemProxyManager.generate_env_script()
+            Logger.success("System proxy has been ENABLED (SOCKS5: 9050, HTTP: 8118).")
+        self.pause()
+
+    def _handle_custom_bridges(self) -> None:
+        """Manage custom bridges file."""
+        self.clear_screen()
+        Logger.header("Manage Custom Bridges (config/custom_bridges.txt)")
+        if CUSTOM_BRIDGES_FILE.exists():
+            print(f"{AnsiColor.BOLD}Current Bridge Lines:{AnsiColor.RESET}")
+            content = CUSTOM_BRIDGES_FILE.read_text(encoding="utf-8").strip()
+            print(content if content else f"{AnsiColor.DIM}(Empty){AnsiColor.RESET}")
+        else:
+            print(f"{AnsiColor.DIM}No custom bridges added yet.{AnsiColor.RESET}")
+
+        print(f"\n{AnsiColor.BOLD}Enter new bridge lines (Paste and press Enter on an empty line when done):{AnsiColor.RESET}")
+        lines = []
+        while True:
+            try:
+                line = input()
+                if not line.strip():
+                    break
+                lines.append(line.strip())
+            except (KeyboardInterrupt, EOFError):
+                break
+
+        if lines:
+            BridgeManager.save_custom_bridges(lines)
+        self.pause()
+
+    def _handle_logs(self) -> None:
+        """View Tor logs."""
+        self.clear_screen()
+        Logger.header("Tor Connection Logs (Press Ctrl+C to exit)")
+        if not TOR_LOG_FILE.exists():
+            Logger.warning("Log file does not exist yet.")
+            self.pause()
+            return
+
+        import subprocess
+        try:
+            subprocess.run(["tail", "-n", "30", "-f", str(TOR_LOG_FILE)])
+        except KeyboardInterrupt:
+            pass
