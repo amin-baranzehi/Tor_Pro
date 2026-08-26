@@ -34,7 +34,7 @@ class FetchResult:
 class BridgeFetcher:
     """Fetches and parses fresh Tor bridges using unblocked HTTP debug relays."""
 
-    HTTP_DEBUGGER_URL = "https://www.httpdebugger.com/Tools/ViewHttpHeaders.aspx"
+    HTTP_DEBUGGER_URL = "https://www.httpdebugger.com/tools/viewhttpheaders"
     USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 
     # Regex patterns for bridge lines
