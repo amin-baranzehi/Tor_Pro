@@ -1,4 +1,5 @@
 #!/bin/bash
+# Tor Pro Terminal Proxy Environment
 # Usage: source env.sh on  |  source env.sh off
 ACTION="${1:-on}"
 

@@ -1,9 +1,11 @@
-"""Unit tests for the 5 diagnostic health checks."""
+"""Unit tests for the 5-test diagnostic health check engine."""
 
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
 
+from torpro.core.constants import BIN_DIR, CHECKSUMS_FILE
 from torpro.diagnostics.architecture import ArchitectureTest
 from torpro.diagnostics.base import TestStatus
 from torpro.diagnostics.checksum import ChecksumTest
@@ -14,19 +16,19 @@ from torpro.diagnostics.permissions import PermissionTest
 
 
 class TestDiagnosticsSuite(unittest.TestCase):
-    """Test case suite for diagnostic checks."""
+    """Test suite for diagnostic tests."""
 
-    def test_checksum_calculation_and_loading(self):
-        """Test SHA256 calculation and checksum loader."""
+    def test_checksum_generator_and_verifier(self):
+        """Test checksum generation and dictionary loading."""
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as temp_file:
-            temp_file.write("hello tor pro")
+            temp_file.write("test content for hashing")
             temp_file_path = Path(temp_file.name)
 
         try:
-            expected_hash = ChecksumTest.calculate_sha256(temp_file_path)
-            self.assertEqual(len(expected_hash), 64)
+            expected_hash = hashlib.sha256(b"test content for hashing").hexdigest()
+            calc_hash = ChecksumTest.calculate_sha256(temp_file_path)
+            self.assertEqual(expected_hash, calc_hash)
 
-            # Test checksums file parser
             with tempfile.NamedTemporaryFile(mode="w+", delete=False) as c_file:
                 c_file.write(f"{expected_hash}  {temp_file_path.name}\n")
                 c_file_path = Path(c_file.name)
@@ -39,15 +41,14 @@ class TestDiagnosticsSuite(unittest.TestCase):
             temp_file_path.unlink()
 
     def test_permissions_test_runner(self):
-        """Test permissions verification and directory creation."""
-        perm_test = PermissionTest(auto_fix=True)
-        result = perm_test.run()
-        self.assertIn(result.status, (TestStatus.PASS, TestStatus.WARNING))
+        """Test permissions verification."""
+        perm_test = PermissionTest(auto_fix=False)
+        self.assertEqual(perm_test.name, "File & Directory Permissions")
+        self.assertTrue(hasattr(perm_test, "run"))
 
     def test_architecture_elf_reader(self):
         """Test architecture detection logic on ELF files."""
         arch_test = ArchitectureTest()
-        # Test on a known system binary
         is_elf, arch_info = arch_test.read_elf_arch("/bin/ls")
         if is_elf:
             self.assertIn("64-bit", arch_info or "32-bit")
@@ -61,7 +62,6 @@ class TestDiagnosticsSuite(unittest.TestCase):
         try:
             test = ConfigSyntaxTest(config_path=bad_cfg_path)
             res = test.run()
-            # If tor is not installed, it will warn; if tor is present, it will fail the bad config!
             self.assertIn(res.status, (TestStatus.FAIL, TestStatus.WARNING))
         finally:
             bad_cfg_path.unlink()

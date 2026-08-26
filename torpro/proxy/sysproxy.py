@@ -2,21 +2,67 @@
 
 import os
 from pathlib import Path
+import pwd
 import shutil
-from typing import Dict, Optional
+import subprocess
+from typing import Dict, List, Optional, Tuple
 
 from torpro.core.constants import BASE_DIR, HTTP_HOST, HTTP_PORT, SOCKS5_HOST, SOCKS5_PORT
 from torpro.core.exceptions import SystemProxyError
 from torpro.core.logger import Logger
-from torpro.core.process import CommandRunner
 
 
 class SystemProxyManager:
     """Manages OS desktop and terminal proxy configurations."""
 
     @staticmethod
-    def is_gnome_available() -> bool:
-        """Check if gsettings (GNOME/Cinnamon/MATE) is available."""
+    def _get_target_user_and_bus() -> Tuple[str, int, Optional[str]]:
+        """Resolve the desktop user, UID, and DBUS session bus address."""
+        # 1. Determine user
+        sudo_user = os.environ.get("SUDO_USER")
+        if sudo_user and os.geteuid() == 0:
+            target_user = sudo_user
+        else:
+            target_user = os.environ.get("USER") or os.environ.get("LOGNAME") or "amin"
+
+        try:
+            user_info = pwd.getpwnam(target_user)
+            uid = user_info.pw_uid
+        except Exception:
+            uid = os.geteuid()
+
+        # 2. Determine DBUS address
+        dbus_addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
+        if not dbus_addr or os.geteuid() == 0:
+            user_bus = Path(f"/run/user/{uid}/bus")
+            if user_bus.exists():
+                dbus_addr = f"unix:path={user_bus}"
+
+        return target_user, uid, dbus_addr
+
+    @classmethod
+    def _run_gsettings(cls, args: List[str]) -> subprocess.CompletedProcess:
+        """Execute gsettings command targeting the desktop user's session bus."""
+        target_user, uid, dbus_addr = cls._get_target_user_and_bus()
+        env = os.environ.copy()
+        if dbus_addr:
+            env["DBUS_SESSION_BUS_ADDRESS"] = dbus_addr
+
+        if os.geteuid() == 0 and target_user != "root":
+            # Run as target desktop user
+            cmd = ["sudo", "-u", target_user]
+            if dbus_addr:
+                cmd.append(f"DBUS_SESSION_BUS_ADDRESS={dbus_addr}")
+            cmd.append("gsettings")
+            cmd.extend(args)
+            return subprocess.run(" ".join(cmd), shell=True, capture_output=True, text=True)
+
+        cmd = ["gsettings"] + args
+        return subprocess.run(cmd, env=env, capture_output=True, text=True)
+
+    @classmethod
+    def is_gnome_available(cls) -> bool:
+        """Check if gsettings is available on the system."""
         return shutil.which("gsettings") is not None
 
     @classmethod
@@ -29,23 +75,28 @@ class SystemProxyManager:
     ) -> bool:
         """Configure GNOME system proxy via gsettings."""
         if not cls.is_gnome_available():
+            Logger.warning("gsettings not found on system.")
             return False
 
-        try:
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy", "mode", "'manual'"], check=True)
-            # SOCKS
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy.socks", "host", f"'{socks_host}'"], check=True)
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy.socks", "port", str(socks_port)], check=True)
-            # HTTP
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy.http", "host", f"'{http_host}'"], check=True)
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy.http", "port", str(http_port)], check=True)
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy.http", "enabled", "true"], check=True)
-            # HTTPS
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy.https", "host", f"'{http_host}'"], check=True)
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy.https", "port", str(http_port)], check=True)
-            return True
-        except Exception as err:
-            raise SystemProxyError("Failed to set GNOME system proxy", details=str(err))
+        commands = [
+            ["set", "org.gnome.system.proxy", "mode", "manual"],
+            ["set", "org.gnome.system.proxy.socks", "host", socks_host],
+            ["set", "org.gnome.system.proxy.socks", "port", str(socks_port)],
+            ["set", "org.gnome.system.proxy.http", "host", http_host],
+            ["set", "org.gnome.system.proxy.http", "port", str(http_port)],
+            ["set", "org.gnome.system.proxy.http", "enabled", "true"],
+            ["set", "org.gnome.system.proxy.https", "host", http_host],
+            ["set", "org.gnome.system.proxy.https", "port", str(http_port)],
+        ]
+
+        for args in commands:
+            res = cls._run_gsettings(args)
+            if res.returncode != 0:
+                Logger.debug(f"gsettings {' '.join(args)} stderr: {res.stderr}")
+
+        # Always generate env.sh
+        cls.generate_env_script()
+        return True
 
     @classmethod
     def disable_gnome_proxy(cls) -> bool:
@@ -53,18 +104,19 @@ class SystemProxyManager:
         if not cls.is_gnome_available():
             return False
 
-        try:
-            CommandRunner.run(["gsettings", "set", "org.gnome.system.proxy", "mode", "'none'"], check=True)
-            return True
-        except Exception as err:
-            raise SystemProxyError("Failed to disable GNOME system proxy", details=str(err))
+        res = cls._run_gsettings(["set", "org.gnome.system.proxy", "mode", "none"])
+        if res.returncode != 0:
+            Logger.debug(f"gsettings disable stderr: {res.stderr}")
+
+        cls.generate_env_script()
+        return True
 
     @classmethod
     def is_gnome_proxy_enabled(cls) -> bool:
         """Check if GNOME proxy mode is currently manual."""
         if not cls.is_gnome_available():
             return False
-        res = CommandRunner.run(["gsettings", "get", "org.gnome.system.proxy", "mode"])
+        res = cls._run_gsettings(["get", "org.gnome.system.proxy", "mode"])
         return "manual" in res.stdout.lower()
 
     @classmethod
@@ -73,6 +125,7 @@ class SystemProxyManager:
         env_file = BASE_DIR / "env.sh"
         content = (
             "#!/bin/bash\n"
+            "# Tor Pro Terminal Proxy Environment\n"
             "# Usage: source env.sh on  |  source env.sh off\n"
             'ACTION="${1:-on}"\n\n'
             'if [ "$ACTION" = "on" ]; then\n'

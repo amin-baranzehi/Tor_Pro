@@ -34,6 +34,11 @@ echo -e "${WHITE}===============================================================
 REAL_USER="${SUDO_USER:-$USER}"
 REAL_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6 || echo "$HOME")
 
+# Ensure permissions & user ownership on data and logs directories
+mkdir -p "$DIR/data" "$DIR/logs" "$DIR/config"
+chown -R "$REAL_USER:$REAL_USER" "$DIR/data" "$DIR/logs" "$DIR/config" 2>/dev/null || true
+chmod 700 "$DIR/data" "$DIR/logs" 2>/dev/null || true
+
 create_wrapper() {
     local target_path="$1"
     mkdir -p "$(dirname "$target_path")"
@@ -100,6 +105,8 @@ echo -e "You can now run ${CYAN}${BOLD}torpro${RESET} from ANY directory in your
 echo -e "  * ${CYAN}torpro${RESET}             -> Open Interactive TUI Dashboard"
 echo -e "  * ${CYAN}torpro start${RESET}       -> Start Tor with Snowflake"
 echo -e "  * ${CYAN}torpro stop${RESET}        -> Stop Tor and Proxies"
+echo -e "  * ${CYAN}torpro rotate${RESET}      -> Request New IP Address"
+echo -e "  * ${CYAN}torpro autorotate${RESET}  -> Continuously Rotate IP Address"
 echo -e "  * ${CYAN}torpro doctor${RESET}      -> Run 5 Diagnostic Health Checks"
 echo -e "  * ${CYAN}torpro test${RESET}        -> Test Tor Connection & Check IP"
 echo -e "  * ${CYAN}torpro proxy on/off${RESET} -> Toggle Desktop System Proxy"

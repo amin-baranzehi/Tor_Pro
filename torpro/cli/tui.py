@@ -86,13 +86,13 @@ class TuiDashboard:
         print(f"  {AnsiColor.DIM}{'-' * 70}{AnsiColor.RESET}")
 
     def render_menu(self) -> None:
-        """Render menu options without emojis."""
-        print(f"  {AnsiColor.BOLD}{AnsiColor.BRIGHT_YELLOW}MAIN MENU / MENU ASLI:{AnsiColor.RESET}")
+        """Render menu options in 100% clean English."""
+        print(f"  {AnsiColor.BOLD}{AnsiColor.BRIGHT_YELLOW}MAIN MENU OPTIONS:{AnsiColor.RESET}")
         print(f"   {AnsiColor.BRIGHT_GREEN}{AnsiColor.BOLD}[1]{AnsiColor.RESET}  Start Tor with Snowflake (Default Anti-Censorship)")
         print(f"   {AnsiColor.BRIGHT_CYAN}{AnsiColor.BOLD}[2]{AnsiColor.RESET}  Start Tor with other Bridge (WebTunnel / Obfs4 / Direct)")
         print(f"   {AnsiColor.BRIGHT_RED}{AnsiColor.BOLD}[3]{AnsiColor.RESET}  Stop Tor & Proxy Services")
-        print(f"   {AnsiColor.GREEN}{AnsiColor.BOLD}[4]{AnsiColor.RESET}  Request New IP Address / تغییر فوری آی‌پی (New Circuit)")
-        print(f"   {AnsiColor.MAGENTA}{AnsiColor.BOLD}[5]{AnsiColor.RESET}  Auto IP Rotator Mode / چرخش خودکار آی‌پی بر حسب زمان")
+        print(f"   {AnsiColor.GREEN}{AnsiColor.BOLD}[4]{AnsiColor.RESET}  Request New IP Address (New Circuit / One-Shot)")
+        print(f"   {AnsiColor.MAGENTA}{AnsiColor.BOLD}[5]{AnsiColor.RESET}  Auto IP Rotator Mode (Periodic Interval)")
         print(f"   {AnsiColor.BRIGHT_BLUE}{AnsiColor.BOLD}[6]{AnsiColor.RESET}  Test Tor Connection & Check Exit IP")
         print(f"   {AnsiColor.BRIGHT_MAGENTA}{AnsiColor.BOLD}[7]{AnsiColor.RESET}  Run Doctor Health Diagnostics (5 Diagnostic Tests)")
         print(f"   {AnsiColor.BRIGHT_YELLOW}{AnsiColor.BOLD}[8]{AnsiColor.RESET}  Toggle Desktop System Proxy (Enable / Disable)")
@@ -153,7 +153,7 @@ class TuiDashboard:
         """Prompt user for bridge selection."""
         self.clear_screen()
         Logger.print_banner()
-        print("  [1] Snowflake   (WebRTC Ephemeral Proxies - Recommended for Iran)")
+        print("  [1] Snowflake   (WebRTC Ephemeral Proxies - Recommended for Censored Networks)")
         print("  [2] WebTunnel   (HTTPS Traffic Masking - Requires WebTunnel bridge)")
         print("  [3] Obfs4       (Obfuscated Bridge IPs - Requires Obfs4 bridge)")
         print("  [4] Direct      (No Bridge / Direct Tor Network)")
@@ -183,7 +183,7 @@ class TuiDashboard:
                         Logger.success(f"Successfully fetched and saved {len(fetch_res.bridges)} {selected_mode.upper()} bridges!")
                     else:
                         Logger.error(f"Auto-fetch failed: {fetch_res.error}")
-                        print(f"You can paste your own bridges or use Snowflake (Option [1]).")
+                        print("You can paste your own bridges or use Snowflake (Option [1]).")
                         self.pause()
                         return
                 else:
