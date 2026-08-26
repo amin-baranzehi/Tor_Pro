@@ -43,9 +43,9 @@ fi
 
 # 2. Directory Creation
 echo -e "\n${BOLD}[2/5] Initializing Directory Structure...${RESET}"
-mkdir -p bin config data logs
+mkdir -p bin bin/lib config data logs
 touch data/.gitkeep logs/.gitkeep
-echo -e "${GREEN}[OK] Directories initialized (bin/, config/, data/, logs/)${RESET}"
+echo -e "${GREEN}[OK] Directories initialized (bin/, bin/lib/, config/, data/, logs/)${RESET}"
 
 # 3. Binary Setup (Check or Download)
 echo -e "\n${BOLD}[3/5] Checking & Downloading Standalone Binaries...${RESET}"
@@ -95,6 +95,22 @@ else
     echo -e "${GREEN}[OK] All binaries already present in bin/.${RESET}"
 fi
 
+# Ensure bundled libevent exists
+if [ ! -f "bin/lib/libevent-2.1.so.7" ]; then
+    echo -e "${CYAN}Fetching runtime shared library libevent-2.1.so.7...${RESET}"
+    TMP_LIB=$(mktemp -d)
+    (
+        cd "$TMP_LIB"
+        apt-get download libevent-2.1-7t64 2>/dev/null || apt-get download libevent-2.1-7 2>/dev/null || true
+        dpkg -x *.deb . 2>/dev/null || true
+    )
+    if [ -f "$TMP_LIB/usr/lib/x86_64-linux-gnu/libevent-2.1.so.7" ]; then
+        cp -a "$TMP_LIB"/usr/lib/x86_64-linux-gnu/libevent* bin/lib/
+        echo -e "${GREEN}[OK] libevent runtime library bundled into bin/lib/${RESET}"
+    fi
+    rm -rf "$TMP_LIB"
+fi
+
 # 4. Permissions & Checksums
 echo -e "\n${BOLD}[4/5] Setting Permissions & Calculating Integrity Checksums...${RESET}"
 chmod +x bin/* 2>/dev/null || true
@@ -108,6 +124,7 @@ fi
 
 # 5. Run Doctor Diagnostic Checks
 echo -e "\n${BOLD}[5/5] Running Pre-flight Health Check (Doctor)...${RESET}"
+export LD_LIBRARY_PATH="$DIR/bin/lib:$LD_LIBRARY_PATH"
 python3 -m torpro.cli.main doctor || true
 
 echo -e "\n${GREEN}${BOLD}========================================================================${RESET}"

@@ -30,61 +30,77 @@ echo -e "  ${BLUE}Tor Pro - Professional Anti-Censorship Tor Suite${RESET} ${YEL
 echo -e "  ${GREEN}Author: ${YELLOW}amin.baranzehi_${RESET} | ${MAGENTA}Advanced Privacy & Security Framework${RESET}"
 echo -e "${WHITE}========================================================================${RESET}\n"
 
-# 1. Target directory
-TARGET_DIR="$HOME/.local/bin"
-mkdir -p "$TARGET_DIR"
+# Determine target directories
+# If run as root or sudo, install to /usr/local/bin (available in system-wide PATH)
+if [ "$EUID" -eq 0 ] || [ -n "$SUDO_USER" ]; then
+    SYSTEM_BIN="/usr/local/bin"
+    WRAPPER_PATH="$SYSTEM_BIN/torpro"
+    
+    # Also resolve real user home
+    REAL_USER="${SUDO_USER:-$USER}"
+    REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+else
+    SYSTEM_BIN=""
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
+    WRAPPER_PATH="$REAL_HOME/.local/bin/torpro"
+fi
 
-WRAPPER_PATH="$TARGET_DIR/torpro"
+echo -e "${BOLD}[1/3] Creating global CLI executable 'torpro'...${RESET}"
 
-echo -e "${BOLD}[1/3] Creating global CLI command 'torpro'...${RESET}"
-
-cat << 'EOF' > "$WRAPPER_PATH"
+# Create launcher script
+create_wrapper() {
+    local target="$1"
+    mkdir -p "$(dirname "$target")"
+    cat << EOF > "$target"
 #!/usr/bin/env bash
-TOR_PRO_DIR="REPLACE_DIR"
-cd "$TOR_PRO_DIR"
-exec python3 -m torpro.cli.main "$@"
+TOR_PRO_DIR="$DIR"
+cd "\$TOR_PRO_DIR"
+exec python3 -m torpro.cli.main "\$@"
 EOF
+    chmod +x "$target"
+}
 
-# Substitute actual directory path
-sed -i "s|REPLACE_DIR|$DIR|g" "$WRAPPER_PATH"
-chmod +x "$WRAPPER_PATH"
+# Install to /usr/local/bin if root/sudo, and ~/.local/bin for current user
+if [ -n "$SYSTEM_BIN" ] && [ -w "$SYSTEM_BIN" ]; then
+    create_wrapper "/usr/local/bin/torpro"
+    echo -e "${GREEN}[OK] Installed system-wide: /usr/local/bin/torpro${RESET}"
+fi
 
-echo -e "${GREEN}[OK] Created executable: $WRAPPER_PATH${RESET}"
+# Always install to user's local bin as well
+USER_LOCAL_BIN="$REAL_HOME/.local/bin"
+mkdir -p "$USER_LOCAL_BIN"
+create_wrapper "$USER_LOCAL_BIN/torpro"
+chown -R "$REAL_USER:$REAL_USER" "$USER_LOCAL_BIN/torpro" 2>/dev/null || true
+echo -e "${GREEN}[OK] Installed for user $REAL_USER: $USER_LOCAL_BIN/torpro${RESET}"
 
 # 2. PATH Verification
-echo -e "\n${BOLD}[2/3] Checking user PATH environment...${RESET}"
-if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-    echo -e "${YELLOW}[NOTICE] $HOME/.local/bin is not in your current PATH.${RESET}"
+echo -e "\n${BOLD}[2/3] Checking PATH environment...${RESET}"
+if [[ ":$PATH:" != *":$USER_LOCAL_BIN:"* ]] && [[ ":$PATH:" != *":/usr/local/bin:"* ]]; then
+    echo -e "${YELLOW}[NOTICE] $USER_LOCAL_BIN is not in current PATH. Adding to shell rc files...${RESET}"
     
-    # Append to .bashrc
-    if [ -f "$HOME/.bashrc" ]; then
-        if ! grep -q 'HOME/.local/bin' "$HOME/.bashrc"; then
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-            echo -e "${GREEN}[OK] Added ~/.local/bin to ~/.bashrc${RESET}"
+    for rc in "$REAL_HOME/.bashrc" "$REAL_HOME/.zshrc"; do
+        if [ -f "$rc" ]; then
+            if ! grep -q '.local/bin' "$rc"; then
+                echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
+                echo -e "${GREEN}[OK] Added ~/.local/bin to $rc${RESET}"
+            fi
         fi
-    fi
-    
-    # Append to .zshrc
-    if [ -f "$HOME/.zshrc" ]; then
-        if ! grep -q 'HOME/.local/bin' "$HOME/.zshrc"; then
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
-            echo -e "${GREEN}[OK] Added ~/.local/bin to ~/.zshrc${RESET}"
-        fi
-    fi
+    done
 else
-    echo -e "${GREEN}[OK] ~/.local/bin is already in PATH.${RESET}"
+    echo -e "${GREEN}[OK] PATH environment verified.${RESET}"
 fi
 
 # 3. Desktop Application Entry
 echo -e "\n${BOLD}[3/3] Creating Desktop Application Shortcut...${RESET}"
-DESKTOP_DIR="$HOME/.local/share/applications"
+DESKTOP_DIR="$REAL_HOME/.local/share/applications"
 mkdir -p "$DESKTOP_DIR"
 
 cat << EOF > "$DESKTOP_DIR/torpro.desktop"
 [Desktop Entry]
 Name=Tor Pro
 Comment=Professional Standalone Tor Suite
-Exec=$WRAPPER_PATH menu
+Exec=$USER_LOCAL_BIN/torpro menu
 Icon=security-high
 Terminal=true
 Type=Application
@@ -92,6 +108,7 @@ Categories=Network;Security;
 EOF
 
 chmod +x "$DESKTOP_DIR/torpro.desktop"
+chown -R "$REAL_USER:$REAL_USER" "$DESKTOP_DIR/torpro.desktop" 2>/dev/null || true
 echo -e "${GREEN}[OK] Created desktop shortcut: $DESKTOP_DIR/torpro.desktop${RESET}"
 
 echo -e "\n${GREEN}${BOLD}========================================================================${RESET}"

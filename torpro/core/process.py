@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 from typing import Dict, List, Optional, Union
 
-from torpro.core.constants import COMMAND_TIMEOUT_SECONDS
+from torpro.core.constants import COMMAND_TIMEOUT_SECONDS, LIB_DIR
 from torpro.core.exceptions import ProcessError
 from torpro.core.logger import Logger
 
@@ -40,23 +40,14 @@ class CommandRunner:
         timeout: int = COMMAND_TIMEOUT_SECONDS,
         check: bool = False,
     ) -> CommandResult:
-        """Execute a system command and return structured result.
-
-        Args:
-            command: Command arguments list.
-            cwd: Working directory.
-            env: Custom environment variables dict.
-            timeout: Timeout in seconds.
-            check: If True, raises ProcessError on non-zero exit code.
-
-        Returns:
-            CommandResult instance.
-
-        Raises:
-            ProcessError: If check is True and command returns non-zero code,
-                          or if execution times out.
-        """
+        """Execute a system command and return structured result."""
         merged_env = os.environ.copy()
+        
+        # Inject bundled lib path
+        if LIB_DIR.exists():
+            existing_ld = merged_env.get("LD_LIBRARY_PATH", "")
+            merged_env["LD_LIBRARY_PATH"] = f"{LIB_DIR}:{existing_ld}".rstrip(":")
+
         if env:
             merged_env.update(env)
 

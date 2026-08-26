@@ -13,6 +13,7 @@ PACKAGE_DIR = CORE_DIR.parent
 BASE_DIR = PACKAGE_DIR.parent
 
 BIN_DIR = BASE_DIR / "bin"
+LIB_DIR = BIN_DIR / "lib"
 CONFIG_DIR = BASE_DIR / "config"
 DATA_DIR = BASE_DIR / "data"
 LOGS_DIR = BASE_DIR / "logs"

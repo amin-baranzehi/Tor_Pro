@@ -18,6 +18,7 @@ from torpro.bridges.manager import BridgeManager
 from torpro.core.constants import (
     BOOTSTRAP_TIMEOUT_SECONDS,
     DATA_DIR,
+    LIB_DIR,
     LOGS_DIR,
     TOR_BIN,
     TOR_LOG_FILE,
@@ -111,6 +112,12 @@ class TorService:
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+        # Environment with LD_LIBRARY_PATH
+        env = os.environ.copy()
+        if LIB_DIR.exists():
+            existing_ld = env.get("LD_LIBRARY_PATH", "")
+            env["LD_LIBRARY_PATH"] = f"{LIB_DIR}:{existing_ld}".rstrip(":")
+
         # Launch Tor process
         Logger.info("Launching Tor process...")
         cmd = [str(TOR_BIN), "-f", str(TORRC_PATH)]
@@ -120,6 +127,7 @@ class TorService:
                 cmd,
                 stdout=log_handle,
                 stderr=log_handle,
+                env=env,
                 start_new_session=True,
             )
 
