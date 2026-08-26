@@ -12,6 +12,7 @@ from torpro.bridges.obfs4 import Obfs4Strategy
 from torpro.bridges.snowflake import SnowflakeStrategy
 from torpro.bridges.webtunnel import WebTunnelStrategy
 from torpro.core.constants import (
+    BASE_DIR,
     CONFIG_DIR,
     CONTROL_PORT,
     CUSTOM_BRIDGES_FILE,
@@ -19,6 +20,7 @@ from torpro.core.constants import (
     LOGS_DIR,
     SOCKS5_PORT,
     TOR_LOG_FILE,
+    TOR_PID_FILE,
     TORRC_BASE,
     TORRC_PATH,
 )
@@ -55,24 +57,24 @@ class BridgeManager:
     def ensure_base_config() -> None:
         """Ensure config/torrc.base exists with robust portable defaults."""
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        if not TORRC_BASE.exists():
-            default_base = (
-                "# === Tor Pro Base Configuration ===\n"
-                f"SocksPort {SOCKS5_PORT}\n"
-                f"ControlPort {CONTROL_PORT}\n"
-                "DataDirectory ./data\n"
-                "PidFile .tor.pid\n"
-                f"Log notice file {TOR_LOG_FILE.as_posix()}\n"
-                "ClientOnly 1\n"
-                "SafeLogging 0\n"
-            )
-            TORRC_BASE.write_text(default_base, encoding="utf-8")
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+        default_base = (
+            "# === Tor Pro Base Configuration ===\n"
+            f"SocksPort {SOCKS5_PORT}\n"
+            f"ControlPort {CONTROL_PORT}\n"
+            f"DataDirectory {DATA_DIR.as_posix()}\n"
+            f"PidFile {TOR_PID_FILE.as_posix()}\n"
+            f"Log notice file {TOR_LOG_FILE.as_posix()}\n"
+            "ClientOnly 1\n"
+            "SafeLogging 0\n"
+        )
+        TORRC_BASE.write_text(default_base, encoding="utf-8")
 
     def build_torrc(self, mode_name: str = "snowflake", custom_bridges: Optional[List[str]] = None) -> str:
         """Generate combined torrc content and write to torrc file."""
         self.ensure_base_config()
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
         strategy = self.get_strategy(mode_name)
         if custom_bridges and hasattr(strategy, "_custom_bridges"):

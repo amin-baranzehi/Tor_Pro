@@ -40,10 +40,10 @@ def render_progress_bar(status: BootstrapStatus) -> None:
 
 def cmd_start(args) -> int:
     """Handle start command."""
+    Logger.print_banner()
     service = TorService()
     mode = getattr(args, "mode", "snowflake") or "snowflake"
 
-    Logger.header(f"{__app_name__} v{__version__} - Starting Service")
     print(f" {AnsiColor.BOLD}* Transport Mode:{AnsiColor.RESET} {mode.upper()}")
     print(f" {AnsiColor.BOLD}* SOCKS5 Target:{AnsiColor.RESET}  {SOCKS5_HOST}:{SOCKS5_PORT}")
     print(f" {AnsiColor.BOLD}* HTTP Target:{AnsiColor.RESET}    {HTTP_HOST}:{HTTP_PORT}\n")
@@ -63,6 +63,7 @@ def cmd_start(args) -> int:
 
 def cmd_stop(args) -> int:
     """Handle stop command."""
+    Logger.print_banner()
     service = TorService()
     service.stop()
     return 0
@@ -70,6 +71,7 @@ def cmd_stop(args) -> int:
 
 def cmd_restart(args) -> int:
     """Handle restart command."""
+    Logger.print_banner()
     service = TorService()
     mode = getattr(args, "mode", "snowflake") or "snowflake"
     success = service.restart(mode=mode)
@@ -78,13 +80,13 @@ def cmd_restart(args) -> int:
 
 def cmd_status(args) -> int:
     """Display comprehensive status of Tor Pro processes and ports."""
+    Logger.print_banner()
     tor_pid = TorService.get_pid()
     tor_running = TorService.is_running()
     http_pid = HttpBridgeService.get_pid()
     http_running = HttpBridgeService.is_running()
     gnome_proxy = SystemProxyManager.is_gnome_proxy_enabled()
 
-    Logger.header(f"{__app_name__} System Status")
     print(f" {AnsiColor.BOLD}* Tor Core Daemon:{AnsiColor.RESET}     " + (
         f"{AnsiColor.BRIGHT_GREEN}RUNNING (PID: {tor_pid}){AnsiColor.RESET}" if tor_running
         else f"{AnsiColor.DIM}STOPPED{AnsiColor.RESET}"
@@ -109,6 +111,7 @@ def cmd_status(args) -> int:
 
 def cmd_doctor(args) -> int:
     """Run all 5 diagnostic tests."""
+    Logger.print_banner()
     engine = DiagnosticEngine()
     results = engine.run_all(print_report=True)
     all_ok = all(r.is_passed for r in results)
@@ -117,12 +120,14 @@ def cmd_doctor(args) -> int:
 
 def cmd_test(args) -> int:
     """Test connection and show exit IP."""
+    Logger.print_banner()
     ConnectionTester.print_report()
     return 0
 
 
 def cmd_proxy(args) -> int:
     """Handle system proxy toggle."""
+    Logger.print_banner()
     action = getattr(args, "action", "status")
     if action == "on":
         SystemProxyManager.enable_gnome_proxy()
@@ -141,11 +146,15 @@ def cmd_proxy(args) -> int:
 
 def cmd_logs(args) -> int:
     """Tail log file."""
+    Logger.print_banner()
     if not TOR_LOG_FILE.exists():
         Logger.warning("No log file found yet.")
         return 0
     import subprocess
-    subprocess.run(["tail", "-n", "50", "-f", str(TOR_LOG_FILE)])
+    try:
+        subprocess.run(["tail", "-n", "50", "-f", str(TOR_LOG_FILE)])
+    except KeyboardInterrupt:
+        print()
     return 0
 
 
@@ -216,23 +225,26 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    """Main CLI entry point."""
-    parser = build_parser()
-    args = parser.parse_args()
+    """Main CLI entry point with graceful interrupt handling."""
+    try:
+        parser = build_parser()
+        args = parser.parse_args()
 
-    if args.verbose:
-        Logger.set_verbose(True)
+        if args.verbose:
+            Logger.set_verbose(True)
 
-    if not args.command:
-        # If no arguments given, launch the interactive menu by default!
-        from torpro.cli.tui import TuiDashboard
-        dashboard = TuiDashboard()
-        dashboard.run()
+        if not args.command:
+            from torpro.cli.tui import TuiDashboard
+            dashboard = TuiDashboard()
+            dashboard.run()
+            return 0
+
+        if hasattr(args, "func"):
+            return args.func(args)
         return 0
-
-    if hasattr(args, "func"):
-        return args.func(args)
-    return 0
+    except KeyboardInterrupt:
+        print(f"\n{AnsiColor.DIM}Interrupted by user. Exiting.{AnsiColor.RESET}")
+        return 130
 
 
 if __name__ == "__main__":

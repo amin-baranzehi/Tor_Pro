@@ -1,4 +1,4 @@
-"""Centralized logger and output formatter for Tor Pro.
+"""Centralized logger, ASCII banner, and output formatter for Tor Pro.
 
 Adheres to PEP 8 and DRY principles by providing standardized console formatting,
 colors, and structured log outputs without non-standard emojis.
@@ -8,6 +8,7 @@ from datetime import datetime
 import sys
 from typing import Optional
 
+from torpro import __version__
 from torpro.core.constants import AnsiColor
 
 
@@ -20,6 +21,39 @@ class Logger:
     def set_verbose(cls, verbose: bool) -> None:
         """Enable or disable verbose debug output."""
         cls._verbose = verbose
+
+    @staticmethod
+    def get_banner() -> str:
+        """Return the official Tor Pro ASCII art banner with author info."""
+        r = AnsiColor.BRIGHT_RED
+        w = AnsiColor.WHITE
+        b = AnsiColor.BRIGHT_BLUE
+        g = AnsiColor.BRIGHT_GREEN
+        y = AnsiColor.BRIGHT_YELLOW
+        p = AnsiColor.BRIGHT_MAGENTA
+        reset = AnsiColor.RESET
+        bold = AnsiColor.BOLD
+
+        art = (
+            r + bold + "\n"
+            r"  _______ ____  _____    _____  _____   ____  " + "\n"
+            r" |__   __/ __ \|  __ \  |  __ \|  __ \ / __ \ " + "\n"
+            r"    | | | |  | | |__) | | |__) | |__) | |  | |" + "\n"
+            r"    | | | |  | |  _  /  |  ___/|  _  /| |  | |" + "\n"
+            r"    | | | |__| | | \ \  | |    | | \ \| |__| |" + "\n"
+            r"    |_|  \____/|_|  \_\ |_|    |_|  \_\\____/ " + "\n"
+            + w + "========================================================================\n"
+            + f"  {b}Tor Pro - Professional Anti-Censorship Tor Suite{reset} {y}[v{__version__}]{reset}\n"
+            + f"  {g}Author: {y}amin.baranzehi_{reset} | {p}Advanced Privacy & Security Framework{reset}\n"
+            + w + "========================================================================"
+            + reset
+        )
+        return art
+
+    @classmethod
+    def print_banner(cls) -> None:
+        """Print official ASCII banner."""
+        print(cls.get_banner())
 
     @staticmethod
     def _format(prefix: str, color: str, message: str) -> str:
@@ -57,7 +91,7 @@ class Logger:
     @classmethod
     def header(cls, title: str) -> None:
         """Print a clean section header."""
-        sep = "=" * max(len(title) + 6, 60)
+        sep = "=" * 60
         print(f"\n{AnsiColor.BRIGHT_MAGENTA}{AnsiColor.BOLD}{sep}")
         print(f"  {title}")
         print(f"{sep}{AnsiColor.RESET}\n")

@@ -95,15 +95,15 @@ class TorService:
                 HttpBridgeService.start_background()
             return True
 
-        # Pre-flight diagnostic check
+        # 1. Build dynamic configuration FIRST
+        Logger.info(f"Configuring bridge mode: {mode.upper()}")
+        self.bridge_manager.build_torrc(mode_name=mode)
+
+        # 2. Run pre-flight diagnostic checks
         Logger.info("Running pre-flight diagnostic checks...")
         if not self.diagnostics.is_healthy():
             Logger.warning("Diagnostic check encountered warnings/errors. Running doctor report...")
             self.diagnostics.run_all(print_report=True)
-
-        # Build dynamic configuration
-        Logger.info(f"Configuring bridge mode: {mode.upper()}")
-        self.bridge_manager.build_torrc(mode_name=mode)
 
         # Clear old log
         if TOR_LOG_FILE.exists():
@@ -139,16 +139,21 @@ class TorService:
             HttpBridgeService.start_background()
 
         # Monitor bootstrap progress
-        success = self._wait_for_bootstrap(timeout=timeout, on_progress=on_progress)
-        if not success:
-            Logger.error(
-                "Tor connection timed out or failed to reach 100% bootstrap.",
-                details=f"Inspect logs with './tor.sh logs' or file: {TOR_LOG_FILE}",
-            )
-            return False
+        try:
+            success = self._wait_for_bootstrap(timeout=timeout, on_progress=on_progress)
+            if not success:
+                Logger.error(
+                    "Tor connection timed out or failed to reach 100% bootstrap.",
+                    details=f"Inspect logs with './tor.sh logs' or file: {TOR_LOG_FILE}",
+                )
+                return False
 
-        Logger.success("Tor connected successfully (100% Bootstrap)!")
-        return True
+            Logger.success("Tor connected successfully (100% Bootstrap)!")
+            return True
+        except KeyboardInterrupt:
+            Logger.warning("Connection bootstrap interrupted by user. Stopping services...")
+            self.stop()
+            return False
 
     def stop(self) -> bool:
         """Stop Tor daemon and HTTP bridge processes gracefully."""

@@ -30,44 +30,32 @@ echo -e "  ${BLUE}Tor Pro - Professional Anti-Censorship Tor Suite${RESET} ${YEL
 echo -e "  ${GREEN}Author: ${YELLOW}amin.baranzehi_${RESET} | ${MAGENTA}Advanced Privacy & Security Framework${RESET}"
 echo -e "${WHITE}========================================================================${RESET}\n"
 
-# Determine target directories
-# If run as root or sudo, install to /usr/local/bin (available in system-wide PATH)
-if [ "$EUID" -eq 0 ] || [ -n "$SUDO_USER" ]; then
-    SYSTEM_BIN="/usr/local/bin"
-    WRAPPER_PATH="$SYSTEM_BIN/torpro"
-    
-    # Also resolve real user home
-    REAL_USER="${SUDO_USER:-$USER}"
-    REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-else
-    SYSTEM_BIN=""
-    REAL_USER="$USER"
-    REAL_HOME="$HOME"
-    WRAPPER_PATH="$REAL_HOME/.local/bin/torpro"
-fi
+# Identify calling user
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6 || echo "$HOME")
 
-echo -e "${BOLD}[1/3] Creating global CLI executable 'torpro'...${RESET}"
-
-# Create launcher script
 create_wrapper() {
-    local target="$1"
-    mkdir -p "$(dirname "$target")"
-    cat << EOF > "$target"
+    local target_path="$1"
+    mkdir -p "$(dirname "$target_path")"
+    cat << EOF > "$target_path"
 #!/usr/bin/env bash
 TOR_PRO_DIR="$DIR"
+export LD_LIBRARY_PATH="\$TOR_PRO_DIR/bin/lib:\$LD_LIBRARY_PATH"
 cd "\$TOR_PRO_DIR"
 exec python3 -m torpro.cli.main "\$@"
 EOF
-    chmod +x "$target"
+    chmod +x "$target_path"
 }
 
-# Install to /usr/local/bin if root/sudo, and ~/.local/bin for current user
-if [ -n "$SYSTEM_BIN" ] && [ -w "$SYSTEM_BIN" ]; then
+echo -e "${BOLD}[1/3] Creating global CLI executable 'torpro'...${RESET}"
+
+# If running as root / sudo, install into /usr/local/bin for immediate system PATH availability
+if [ "$EUID" -eq 0 ] || [ -w "/usr/local/bin" ]; then
     create_wrapper "/usr/local/bin/torpro"
     echo -e "${GREEN}[OK] Installed system-wide: /usr/local/bin/torpro${RESET}"
 fi
 
-# Always install to user's local bin as well
+# Always install to real user's ~/.local/bin
 USER_LOCAL_BIN="$REAL_HOME/.local/bin"
 mkdir -p "$USER_LOCAL_BIN"
 create_wrapper "$USER_LOCAL_BIN/torpro"
@@ -76,20 +64,15 @@ echo -e "${GREEN}[OK] Installed for user $REAL_USER: $USER_LOCAL_BIN/torpro${RES
 
 # 2. PATH Verification
 echo -e "\n${BOLD}[2/3] Checking PATH environment...${RESET}"
-if [[ ":$PATH:" != *":$USER_LOCAL_BIN:"* ]] && [[ ":$PATH:" != *":/usr/local/bin:"* ]]; then
-    echo -e "${YELLOW}[NOTICE] $USER_LOCAL_BIN is not in current PATH. Adding to shell rc files...${RESET}"
-    
-    for rc in "$REAL_HOME/.bashrc" "$REAL_HOME/.zshrc"; do
-        if [ -f "$rc" ]; then
-            if ! grep -q '.local/bin' "$rc"; then
-                echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
-                echo -e "${GREEN}[OK] Added ~/.local/bin to $rc${RESET}"
-            fi
+for rc in "$REAL_HOME/.bashrc" "$REAL_HOME/.profile" "$REAL_HOME/.zshrc"; do
+    if [ -f "$rc" ]; then
+        if ! grep -q 'HOME/.local/bin' "$rc"; then
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
+            chown "$REAL_USER:$REAL_USER" "$rc" 2>/dev/null || true
+            echo -e "${GREEN}[OK] Added ~/.local/bin to $rc${RESET}"
         fi
-    done
-else
-    echo -e "${GREEN}[OK] PATH environment verified.${RESET}"
-fi
+    fi
+done
 
 # 3. Desktop Application Entry
 echo -e "\n${BOLD}[3/3] Creating Desktop Application Shortcut...${RESET}"

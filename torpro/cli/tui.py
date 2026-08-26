@@ -52,27 +52,7 @@ class TuiDashboard:
 
     def render_banner(self) -> None:
         """Render ASCII banner with author information."""
-        r = AnsiColor.BRIGHT_RED
-        w = AnsiColor.WHITE
-        b = AnsiColor.BRIGHT_BLUE
-        g = AnsiColor.BRIGHT_GREEN
-        y = AnsiColor.BRIGHT_YELLOW
-        p = AnsiColor.BRIGHT_MAGENTA
-        reset = AnsiColor.RESET
-        bold = AnsiColor.BOLD
-
-        banner = f"""{r}{bold}
-  _______ ____  _____    _____  _____   ____  
- |__   __/ __ \|  __ \  |  __ \|  __ \ / __ \ 
-    | | | |  | | |__) | | |__) | |__) | |  | |
-    | | | |  | |  _  /  |  ___/|  _  /| |  | |
-    | | | |__| | | \ \  | |    | | \ \| |__| |
-    |_|  \____/|_|  \_\ |_|    |_|  \_\\____/ 
-{w}========================================================================{reset}
-  {b}Tor Pro - Professional Anti-Censorship Tor Suite{reset} {y}[v{__version__}]{reset}
-  {g}Author: {y}amin.baranzehi_{reset} | {p}Advanced Privacy & Security Framework{reset}
-{w}========================================================================{reset}"""
-        print(banner)
+        Logger.print_banner()
 
     def render_status(self) -> None:
         """Render service status summary."""
@@ -152,14 +132,14 @@ class TuiDashboard:
     def _handle_start_snowflake(self) -> None:
         """Start Tor with default Snowflake transport."""
         self.clear_screen()
-        Logger.header("Starting Tor Pro (Snowflake Mode)")
+        Logger.print_banner()
         self.service.start(mode="snowflake", enable_http_bridge=True)
         self.pause()
 
     def _handle_select_bridge(self) -> None:
         """Prompt user for bridge selection."""
         self.clear_screen()
-        Logger.header("Select Bridge Transport Mode")
+        Logger.print_banner()
         print("  [1] Snowflake   (WebRTC Ephemeral Proxies - Recommended)")
         print("  [2] WebTunnel   (HTTPS Traffic Masking)")
         print("  [3] Obfs4       (Obfuscated Bridge IPs)")
@@ -177,7 +157,7 @@ class TuiDashboard:
     def _handle_stop(self) -> None:
         """Stop all processes."""
         self.clear_screen()
-        Logger.header("Stopping Tor Pro")
+        Logger.print_banner()
         self.service.stop()
         self.pause()
 
@@ -196,7 +176,7 @@ class TuiDashboard:
     def _handle_toggle_proxy(self) -> None:
         """Toggle system proxy."""
         self.clear_screen()
-        Logger.header("Toggle Desktop System Proxy")
+        Logger.print_banner()
         current_state = SystemProxyManager.is_gnome_proxy_enabled()
         if current_state:
             SystemProxyManager.disable_gnome_proxy()
@@ -211,7 +191,7 @@ class TuiDashboard:
     def _handle_custom_bridges(self) -> None:
         """Manage custom bridges file."""
         self.clear_screen()
-        Logger.header("Manage Custom Bridges (config/custom_bridges.txt)")
+        Logger.print_banner()
         if CUSTOM_BRIDGES_FILE.exists():
             print(f"{AnsiColor.BOLD}Current Bridge Lines:{AnsiColor.RESET}")
             content = CUSTOM_BRIDGES_FILE.read_text(encoding="utf-8").strip()
@@ -237,7 +217,8 @@ class TuiDashboard:
     def _handle_logs(self) -> None:
         """View Tor logs."""
         self.clear_screen()
-        Logger.header("Tor Connection Logs (Press Ctrl+C to exit)")
+        Logger.print_banner()
+        print("  Tor Connection Logs (Press Ctrl+C to exit)\n")
         if not TOR_LOG_FILE.exists():
             Logger.warning("Log file does not exist yet.")
             self.pause()
