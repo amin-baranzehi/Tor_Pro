@@ -20,6 +20,7 @@ from torpro.diagnostics.engine import DiagnosticEngine
 from torpro.proxy.http_bridge import HttpBridgeService
 from torpro.proxy.sysproxy import SystemProxyManager
 from torpro.service.connection_tester import ConnectionTester
+from torpro.service.ip_rotator import TorIpRotator
 from torpro.service.tor_service import BootstrapStatus, TorService
 
 
@@ -107,6 +108,29 @@ def cmd_status(args) -> int:
             print(f" {AnsiColor.BOLD}* Bootstrap State:{AnsiColor.RESET}     {bootstrap.percent}% ({bootstrap.summary})")
 
     print()
+    return 0
+
+
+def cmd_rotate(args) -> int:
+    """Request a new IP address / circuit right now."""
+    Logger.print_banner()
+    Logger.info("Requesting new Tor identity circuit (SIGNAL NEWNYM)...")
+    res = TorIpRotator.rotate_now(cooldown=2.0)
+    if res.success:
+        print(f"\n{AnsiColor.BRIGHT_GREEN}{AnsiColor.BOLD}[OK] IP Rotation Succeeded!{AnsiColor.RESET}")
+        print(f"  New Exit IP: {AnsiColor.BRIGHT_CYAN}{res.new_ip}{AnsiColor.RESET}")
+        print(f"  Location:   {res.country}\n")
+        return 0
+    else:
+        Logger.error("Failed to rotate IP", res.message)
+        return 1
+
+
+def cmd_autorotate(args) -> int:
+    """Continuously rotate Tor IP every N seconds."""
+    Logger.print_banner()
+    interval = getattr(args, "interval", 30) or 30
+    TorIpRotator.run_auto_rotator(interval_seconds=int(interval))
     return 0
 
 
@@ -219,6 +243,15 @@ def build_parser() -> argparse.ArgumentParser:
     # status
     p_status = subparsers.add_parser("status", help="Show running status and ports")
     p_status.set_defaults(func=cmd_status)
+
+    # rotate / newip
+    p_rotate = subparsers.add_parser("rotate", aliases=["newip"], help="Request a new IP address / circuit now")
+    p_rotate.set_defaults(func=cmd_rotate)
+
+    # autorotate
+    p_autorotate = subparsers.add_parser("autorotate", help="Periodically rotate IP address every N seconds")
+    p_autorotate.add_argument("interval", nargs="?", type=int, default=30, help="Interval in seconds (default: 30)")
+    p_autorotate.set_defaults(func=cmd_autorotate)
 
     # fetch
     p_fetch = subparsers.add_parser("fetch", help="Fetch fresh Obfs4/WebTunnel bridges via unblocked relay")

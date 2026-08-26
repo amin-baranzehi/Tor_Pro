@@ -13,7 +13,7 @@
 ========================================================================
 ```
 
-**Tor Pro** is an enterprise-grade, standalone, zero-dependency Tor circumvention suite for Linux tailored for severe censorship environments. It provides out-of-the-box support for modern pluggable transports (**Snowflake**, **WebTunnel**, **Obfs4**), an automated online **Bridge Fetcher** that bypasses BridgeDB domain censorship, a built-in **HTTP-to-SOCKS5** dual proxy engine, 5 pre-flight diagnostic health checks (**Doctor Suite**), and an interactive **TUI Dashboard**.
+**Tor Pro** is an enterprise-grade, standalone, zero-dependency Tor circumvention suite for Linux tailored for severe censorship environments. It provides out-of-the-box support for modern pluggable transports (**Snowflake**, **WebTunnel**, **Obfs4**), an automated online **Bridge Fetcher** that bypasses BridgeDB domain censorship, a built-in **HTTP-to-SOCKS5** dual proxy engine, an automated **IP Rotator (SIGNAL NEWNYM)**, 5 pre-flight diagnostic health checks (**Doctor Suite**), and an interactive **TUI Dashboard**.
 
 ---
 
@@ -35,39 +35,43 @@
 - **Interactive Auto-Fetch:** Integrated into both the CLI (`torpro fetch obfs4`) and the interactive TUI menu.
 - **Diagnostic Logging:** Automatically logs raw response previews into `logs/bridge_fetch_debug.html` for complete transparency.
 
-### 4. Built-in Dual Proxy Engine (SOCKS5 + HTTP/HTTPS)
+### 4. Dynamic Tor IP Rotator & Circuit Renewal (`TorIpRotator`)
+- **Instant IP Change (One-Shot):** Sends `SIGNAL NEWNYM` via Tor's `ControlPort 9051` to cleanly tear down old circuits and issue a brand-new Exit Node IP address (`torpro rotate` / `torpro newip`).
+- **Auto IP Rotator Mode:** Automatically changes your Exit IP periodically every N seconds (e.g. every 10s, 30s, 60s) with live real-time output and country resolution (`torpro autorotate 30`).
+
+### 5. Built-in Dual Proxy Engine (SOCKS5 + HTTP/HTTPS)
 - **SOCKS5 Proxy:** `127.0.0.1:9050`
 - **HTTP / HTTPS Proxy:** `http://127.0.0.1:8118` (Pure Python asynchronous threaded server supporting HTTP `CONNECT` tunneling with remote DNS resolution to prevent DNS leaks).
 
-### 5. Pre-Flight Doctor Diagnostic Health Checks (5 Core Tests)
+### 6. Pre-Flight Doctor Diagnostic Health Checks (5 Core Tests)
 - `[1] File & Directory Permissions:` Automatically checks and enforces `+x` on executables and write permissions on `data/` and `logs/`.
 - `[2] CPU Architecture Compatibility:` Validates binary ELF headers against host CPU architecture (`x86_64` / `aarch64`).
 - `[3] Binary Checksum Verification:` Cryptographic SHA256 integrity verification against `bin/checksums.sha256`.
 - `[4] Missing Shared Libraries (ldd):` Inspects dynamic linker resolution and verifies execution of binaries.
 - `[5] Corrupted Config Verification:` Runs `tor --verify-config` pre-flight validation before launching to catch bad bridge lines or syntax errors immediately.
 
-### 6. Network Circumvention Diagnostics (`test_iran_bypass.py`)
+### 7. Network Circumvention Diagnostics (`test_iran_bypass.py`)
 - Standalone diagnostic script that probes:
   - Snowflake broker endpoints and Domain Fronting responsiveness.
   - STUN WebRTC UDP reachability.
   - Tor Directory Authorities and BridgeDB reachability.
   - Generates ISP-specific transport recommendations.
 
-### 7. Desktop & Terminal System Proxy Integration
+### 8. Desktop & Terminal System Proxy Integration
 - **1-Click Desktop Proxy:** Toggle GNOME / desktop system proxy instantly (`torpro proxy on` / `torpro proxy off`).
 - **Terminal Proxy Script:** Automatically generates `env.sh` for sourcing proxy environment variables in bash/zsh (`source env.sh on` / `source env.sh off`).
 
-### 8. Global System-Wide CLI & Desktop Shortcut
+### 9. Global System-Wide CLI & Desktop Shortcut
 - Installable via `./install.sh` to `/usr/local/bin/torpro` and `~/.local/bin/torpro`.
 - Desktop application shortcut created at `~/.local/share/applications/torpro.desktop`.
 - Callable from any folder in terminal simply by typing `torpro`.
 
-### 9. Interactive TUI Dashboard (`menu.sh` / `torpro menu`)
+### 10. Interactive TUI Dashboard (`menu.sh` / `torpro menu`)
 - Visual terminal interface with ASCII art banner, service status indicators, live bootstrap percentage progress bar, bridge transport selector, and log viewer.
 
-### 10. Software Engineering Standards & Unit Tests
+### 11. Software Engineering Standards & Unit Tests
 - Implements **OOP**, **SOLID** principles, **DRY**, and strict **PEP 8** style guidelines with static type annotations.
-- Includes 14 automated unit tests running in `tests/` (`python3 -m unittest discover tests/`).
+- Includes 17 automated unit tests running in `tests/` (`python3 -m unittest discover tests/`).
 
 ---
 
@@ -104,6 +108,8 @@ torpro
 | `torpro stop` | Stop Tor daemon and HTTP proxy server |
 | `torpro restart [mode]` | Restart Tor service with selected transport |
 | `torpro status` | Display status of Tor, HTTP proxy, and system proxy |
+| `torpro rotate` / `torpro newip` | Request a new IP address / circuit right now |
+| `torpro autorotate [seconds]` | Periodically rotate IP address every N seconds (e.g. `torpro autorotate 30`) |
 | `torpro doctor` | Execute 5 pre-flight diagnostic health checks |
 | `torpro fetch obfs4` | Auto-fetch fresh Obfs4 bridges via unblocked relay |
 | `torpro fetch webtunnel` | Auto-fetch fresh WebTunnel bridges |
@@ -134,12 +140,13 @@ Portable-Tor/
 │   ├── diagnostics/           # 5 Diagnostic health tests & Doctor engine
 │   ├── bridges/               # Snowflake, Obfs4, WebTunnel, Direct, BridgeFetcher
 │   ├── proxy/                 # HTTP-to-SOCKS5 server & System proxy manager
-│   ├── service/               # Daemon process controller & connection tester
+│   ├── service/               # Daemon process controller, tester & IP Rotator
 │   └── cli/                   # CLI command dispatcher & TUI dashboard
-├── tests/                     # Automated unit test suite
+├── tests/                     # Automated unit test suite (17 tests)
 │   ├── test_diagnostics.py
 │   ├── test_bridges.py
-│   └── test_proxy.py
+│   ├── test_proxy.py
+│   └── test_service.py
 ├── setup.sh                   # Automated binary setup script
 ├── install.sh                 # Global system installer
 ├── uninstall.sh               # Global uninstaller

@@ -1,7 +1,7 @@
 """Interactive Terminal User Interface (TUI) Dashboard for Tor Pro.
 
 Provides an ASCII banner and clean menu for controlling Tor, switching bridges,
-fetching fresh Obfs4 bridges, running doctor diagnostics, toggling system proxy,
+rotating IP addresses, fetching fresh bridges, running diagnostics, toggling proxy,
 and inspecting logs.
 """
 
@@ -28,6 +28,7 @@ from torpro.diagnostics.engine import DiagnosticEngine
 from torpro.proxy.http_bridge import HttpBridgeService
 from torpro.proxy.sysproxy import SystemProxyManager
 from torpro.service.connection_tester import ConnectionTester
+from torpro.service.ip_rotator import TorIpRotator
 from torpro.service.tor_service import BootstrapStatus, TorService
 
 
@@ -87,16 +88,18 @@ class TuiDashboard:
     def render_menu(self) -> None:
         """Render menu options without emojis."""
         print(f"  {AnsiColor.BOLD}{AnsiColor.BRIGHT_YELLOW}MAIN MENU / MENU ASLI:{AnsiColor.RESET}")
-        print(f"   {AnsiColor.BRIGHT_GREEN}{AnsiColor.BOLD}[1]{AnsiColor.RESET} Start Tor with Snowflake (Default Anti-Censorship)")
-        print(f"   {AnsiColor.BRIGHT_CYAN}{AnsiColor.BOLD}[2]{AnsiColor.RESET} Start Tor with other Bridge (WebTunnel / Obfs4 / Direct)")
-        print(f"   {AnsiColor.BRIGHT_RED}{AnsiColor.BOLD}[3]{AnsiColor.RESET} Stop Tor & Proxy Services")
-        print(f"   {AnsiColor.BRIGHT_BLUE}{AnsiColor.BOLD}[4]{AnsiColor.RESET} Test Tor Connection & Check Exit IP")
-        print(f"   {AnsiColor.BRIGHT_MAGENTA}{AnsiColor.BOLD}[5]{AnsiColor.RESET} Run Doctor Health Diagnostics (5 Diagnostic Tests)")
-        print(f"   {AnsiColor.BRIGHT_YELLOW}{AnsiColor.BOLD}[6]{AnsiColor.RESET} Toggle Desktop System Proxy (Enable / Disable)")
-        print(f"   {AnsiColor.GREEN}{AnsiColor.BOLD}[7]{AnsiColor.RESET} Auto-Fetch Fresh Obfs4 / WebTunnel Bridges (Bypass Filtered BridgeDB)")
-        print(f"   {AnsiColor.WHITE}{AnsiColor.BOLD}[8]{AnsiColor.RESET} Manage / Paste Custom Bridges (config/custom_bridges.txt)")
-        print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[9]{AnsiColor.RESET} View Live Connection Logs")
-        print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[0]{AnsiColor.RESET} Exit")
+        print(f"   {AnsiColor.BRIGHT_GREEN}{AnsiColor.BOLD}[1]{AnsiColor.RESET}  Start Tor with Snowflake (Default Anti-Censorship)")
+        print(f"   {AnsiColor.BRIGHT_CYAN}{AnsiColor.BOLD}[2]{AnsiColor.RESET}  Start Tor with other Bridge (WebTunnel / Obfs4 / Direct)")
+        print(f"   {AnsiColor.BRIGHT_RED}{AnsiColor.BOLD}[3]{AnsiColor.RESET}  Stop Tor & Proxy Services")
+        print(f"   {AnsiColor.GREEN}{AnsiColor.BOLD}[4]{AnsiColor.RESET}  Request New IP Address / تغییر فوری آی‌پی (New Circuit)")
+        print(f"   {AnsiColor.MAGENTA}{AnsiColor.BOLD}[5]{AnsiColor.RESET}  Auto IP Rotator Mode / چرخش خودکار آی‌پی بر حسب زمان")
+        print(f"   {AnsiColor.BRIGHT_BLUE}{AnsiColor.BOLD}[6]{AnsiColor.RESET}  Test Tor Connection & Check Exit IP")
+        print(f"   {AnsiColor.BRIGHT_MAGENTA}{AnsiColor.BOLD}[7]{AnsiColor.RESET}  Run Doctor Health Diagnostics (5 Diagnostic Tests)")
+        print(f"   {AnsiColor.BRIGHT_YELLOW}{AnsiColor.BOLD}[8]{AnsiColor.RESET}  Toggle Desktop System Proxy (Enable / Disable)")
+        print(f"   {AnsiColor.CYAN}{AnsiColor.BOLD}[9]{AnsiColor.RESET}  Auto-Fetch Fresh Obfs4 / WebTunnel Bridges (Bypass BridgeDB)")
+        print(f"   {AnsiColor.WHITE}{AnsiColor.BOLD}[10]{AnsiColor.RESET} Manage / Paste Custom Bridges (config/custom_bridges.txt)")
+        print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[11]{AnsiColor.RESET} View Live Connection Logs")
+        print(f"   {AnsiColor.DIM}{AnsiColor.BOLD}[0]{AnsiColor.RESET}  Exit")
         print(f"  {AnsiColor.DIM}{'-' * 70}{AnsiColor.RESET}")
 
     def run(self) -> None:
@@ -108,7 +111,7 @@ class TuiDashboard:
             self.render_menu()
 
             try:
-                choice = input(f"  {AnsiColor.BOLD}Select an option [0-9]: {AnsiColor.RESET}").strip()
+                choice = input(f"  {AnsiColor.BOLD}Select an option [0-11]: {AnsiColor.RESET}").strip()
             except (KeyboardInterrupt, EOFError):
                 print(f"\n{AnsiColor.DIM}Exiting Tor Pro.{AnsiColor.RESET}")
                 break
@@ -120,16 +123,20 @@ class TuiDashboard:
             elif choice == "3":
                 self._handle_stop()
             elif choice == "4":
-                self._handle_test()
+                self._handle_rotate_ip()
             elif choice == "5":
-                self._handle_doctor()
+                self._handle_autorotate_ip()
             elif choice == "6":
-                self._handle_toggle_proxy()
+                self._handle_test()
             elif choice == "7":
-                self._handle_auto_fetch()
+                self._handle_doctor()
             elif choice == "8":
-                self._handle_custom_bridges()
+                self._handle_toggle_proxy()
             elif choice == "9":
+                self._handle_auto_fetch()
+            elif choice == "10":
+                self._handle_custom_bridges()
+            elif choice == "11":
                 self._handle_logs()
             elif choice == "0" or choice.lower() in ("q", "exit"):
                 print(f"\n{AnsiColor.DIM}Goodbye!{AnsiColor.RESET}")
@@ -159,7 +166,6 @@ class TuiDashboard:
         if not selected_mode:
             return
 
-        # If user selected WebTunnel or Obfs4, check if bridges exist
         if selected_mode in ("webtunnel", "obfs4"):
             has_bridges = False
             if CUSTOM_BRIDGES_FILE.exists():
@@ -202,6 +208,30 @@ class TuiDashboard:
             self.service.start(mode=selected_mode, enable_http_bridge=True)
         except ConfigError as err:
             Logger.error(str(err))
+        self.pause()
+
+    def _handle_rotate_ip(self) -> None:
+        """Request new IP circuit now."""
+        self.clear_screen()
+        Logger.print_banner()
+        Logger.info("Requesting new Tor identity circuit (SIGNAL NEWNYM)...")
+        res = TorIpRotator.rotate_now(cooldown=2.0)
+        if res.success:
+            print(f"\n{AnsiColor.BRIGHT_GREEN}{AnsiColor.BOLD}[OK] IP Rotation Succeeded!{AnsiColor.RESET}")
+            print(f"  New Exit IP: {AnsiColor.BRIGHT_CYAN}{res.new_ip}{AnsiColor.RESET}")
+            print(f"  Location:   {res.country}\n")
+        else:
+            Logger.error("Failed to rotate IP", res.message)
+        self.pause()
+
+    def _handle_autorotate_ip(self) -> None:
+        """Run periodic auto IP rotator."""
+        self.clear_screen()
+        Logger.print_banner()
+        print("  Auto IP Rotator Configuration\n")
+        raw_sec = input(f"  {AnsiColor.BOLD}Enter rotation interval in seconds (default: 30): {AnsiColor.RESET}").strip()
+        interval = int(raw_sec) if raw_sec.isdigit() and int(raw_sec) >= 5 else 30
+        TorIpRotator.run_auto_rotator(interval_seconds=interval)
         self.pause()
 
     def _handle_auto_fetch(self) -> None:
