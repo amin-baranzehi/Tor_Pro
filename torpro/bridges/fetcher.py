@@ -34,18 +34,74 @@ class BridgeFetcher:
     HTTP_DEBUGGER_URL = "https://www.httpdebugger.com/Tools/ViewHttpHeaders.aspx"
     USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 
-    # Regex patterns for obfs4 and webtunnel
+    # Regex patterns for bridge lines
     OBFS4_REGEX = re.compile(
-        r"(?:Bridge\s+)?(obfs4\s+\d+\.\d+\.\d+\.\d+:\d+\s+[A-F0-9]{40}\s+cert=[^\s]+(?:\s+iat-mode=\d)?)",
+        r"(?:Bridge\s+)?(obfs4\s+\d+\.\d+\.\d+\.\d+:\d+\s+[A-F0-9]{40}\s+cert=[A-Za-z0-9+/=]+(?:\s+iat-mode=\d)?)",
         re.IGNORECASE,
     )
     WEBTUNNEL_REGEX = re.compile(
-        r"(?:Bridge\s+)?(webtunnel\s+[^<\r\n]+)",
+        r"(?:Bridge\s+)?(webtunnel\s+\d+\.\d+\.\d+\.\d+:\d+\s+[A-F0-9]{40}\s+url=https?://[^\s<]+(?:\s+ver=\d\.\d\.\d)?)",
         re.IGNORECASE,
     )
 
     @classmethod
-    def fetch_via_httpdebugger(cls, transport: str = "obfs4", timeout: int = 15) -> FetchResult:
+    def _parse_bridgelines(cls, raw_html: str, transport: str) -> List[str]:
+        """Extract clean bridge lines from HTML response."""
+        bridges: List[str] = []
+
+        # 1. First level: Extract <pre> content if present
+        pre_match = re.search(r"<pre[^>]*>(.*?)</pre>", raw_html, re.DOTALL | re.IGNORECASE)
+        content_to_decode = pre_match.group(1) if pre_match else raw_html
+
+        # 2. Decode HTML entities (handles &lt;div id=&quot;bridgelines&quot;&gt;, etc.)
+        decoded = html.unescape(content_to_decode)
+        # Second pass in case of double-encoding
+        if "&lt;" in decoded or "&gt;" in decoded or "&#" in decoded:
+            decoded = html.unescape(decoded)
+
+        # 3. Try to locate <div id="bridgelines"> or <div class="bridge-lines">
+        div_match = re.search(
+            r'<div[^>]*id=["\']bridgelines["\'][^>]*>(.*?)</div>',
+            decoded,
+            re.DOTALL | re.IGNORECASE,
+        )
+        search_scope = div_match.group(1) if div_match else decoded
+
+        # 4. Split by <br>, <br/>, <br /> or newlines
+        raw_lines = re.split(r"<br\s*/?>|\r?\n", search_scope, flags=re.IGNORECASE)
+
+        for line in raw_lines:
+            # Strip tags and spaces
+            clean = re.sub(r"<[^>]+>", "", line).strip()
+            if not clean:
+                continue
+
+            if transport.lower() == "webtunnel":
+                m = cls.WEBTUNNEL_REGEX.search(clean)
+            else:
+                m = cls.OBFS4_REGEX.search(clean)
+
+            if m:
+                bridge_str = m.group(1).strip()
+                if not bridge_str.startswith("Bridge "):
+                    bridge_str = f"Bridge {bridge_str}"
+                if bridge_str not in bridges:
+                    bridges.append(bridge_str)
+
+        # Fallback regex over whole decoded text if lines split missed anything
+        if not bridges:
+            regex = cls.WEBTUNNEL_REGEX if transport.lower() == "webtunnel" else cls.OBFS4_REGEX
+            for match in regex.finditer(decoded):
+                b_str = match.group(1).strip()
+                if not b_str.startswith("Bridge "):
+                    b_str = f"Bridge {b_str}"
+                if b_str not in bridges:
+                    bridges.append(b_str)
+
+        return bridges
+
+    @classmethod
+    def fetch_via_httpdebugger(cls, transport: str = "obfs4", timeout: int = 20) -> FetchResult:
         """Fetch bridges through httpdebugger.com relay."""
         target_url = f"https://bridges.torproject.org/bridges?transport={transport}"
 
@@ -60,6 +116,7 @@ class BridgeFetcher:
             "User-Agent": cls.USER_AGENT,
             "Content-Type": "application/x-www-form-urlencoded",
             "Referer": "https://www.httpdebugger.com/tools/viewhttpheaders.aspx",
+            "Origin": "https://www.httpdebugger.com",
         }
 
         req = urllib.request.Request(cls.HTTP_DEBUGGER_URL, data=post_data, headers=headers)
@@ -68,25 +125,7 @@ class BridgeFetcher:
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 raw_html = response.read().decode("utf-8", errors="ignore")
 
-            # Decode HTML entities
-            decoded = html.unescape(raw_html)
-
-            # Extract bridges
-            bridges: List[str] = []
-            if transport.lower() == "webtunnel":
-                matches = cls.WEBTUNNEL_REGEX.findall(decoded)
-            else:
-                matches = cls.OBFS4_REGEX.findall(decoded)
-
-            for match in matches:
-                clean = match.strip()
-                # Remove any leftover HTML tags
-                clean = re.sub(r"<[^>]+>", "", clean).strip()
-                if clean:
-                    if not clean.startswith("Bridge "):
-                        clean = f"Bridge {clean}"
-                    if clean not in bridges:
-                        bridges.append(clean)
+            bridges = cls._parse_bridgelines(raw_html, transport)
 
             if bridges:
                 return FetchResult(
@@ -96,14 +135,15 @@ class BridgeFetcher:
                     source="httpdebugger.com Relay",
                 )
 
-            # Check if captcha or empty
-            if "captcha" in decoded.lower():
+            # Check if Captcha challenge was returned
+            decoded_preview = html.unescape(raw_html[:2000]).lower()
+            if "captcha" in decoded_preview:
                 return FetchResult(
                     success=False,
                     transport=transport,
                     bridges=[],
                     source="httpdebugger.com",
-                    error="Captcha requested by BridgeDB. Try again shortly.",
+                    error="Captcha requested by Tor BridgeDB (Server rate limited). Try again in a few minutes.",
                 )
 
             return FetchResult(
@@ -111,7 +151,7 @@ class BridgeFetcher:
                 transport=transport,
                 bridges=[],
                 source="httpdebugger.com",
-                error="No bridge lines found in response body.",
+                error="No bridge lines found in response body (BridgeDB might be temporarily empty or rate-limited).",
             )
 
         except urllib.error.URLError as err:
