@@ -129,8 +129,9 @@ class ConnectionTester:
 
     @classmethod
     def print_report(cls) -> None:
-        """Run connectivity check and output human-friendly report."""
-        Logger.header("Tor Pro Network & Connection Test")
+        """Run connectivity check and output report with standard ASCII banner."""
+        Logger.print_banner()
+        print(f"\n{AnsiColor.BOLD}{AnsiColor.BRIGHT_MAGENTA}--- Network Connection & IP Test ---{AnsiColor.RESET}\n")
         report = cls.test_tor_connection()
 
         if report.is_connected:
