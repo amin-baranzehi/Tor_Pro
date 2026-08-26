@@ -7,6 +7,7 @@ from typing import List, Optional
 
 from torpro.bridges.base import BaseBridgeStrategy
 from torpro.core.constants import CUSTOM_BRIDGES_FILE
+from torpro.core.exceptions import ConfigError
 
 
 class WebTunnelStrategy(BaseBridgeStrategy):
@@ -43,16 +44,19 @@ class WebTunnelStrategy(BaseBridgeStrategy):
         """Produce torrc lines for WebTunnel."""
         bridges = self._load_bridges()
 
+        if not bridges:
+            raise ConfigError(
+                "No WebTunnel bridge lines found in config/custom_bridges.txt!\n"
+                "  -> To use WebTunnel, please obtain bridge lines (e.g. from https://bridges.torproject.org "
+                "or Telegram @GetBridgesBot) and add them via Menu Option [7].\n"
+                "  -> Alternatively, use Snowflake (Option [1]) which does not require static bridge lines."
+            )
+
         lines = [
             "# === WebTunnel Pluggable Transport Configuration ===",
             "UseBridges 1",
             "ClientTransportPlugin webtunnel exec ./bin/lyrebird",
             "",
         ]
-
-        if bridges:
-            lines.extend(bridges)
-        else:
-            lines.append("# [NOTE] Add WebTunnel bridge lines to config/custom_bridges.txt")
-
+        lines.extend(bridges)
         return lines

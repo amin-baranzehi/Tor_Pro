@@ -50,7 +50,7 @@ TOR_CHECK_API_URL = "https://check.torproject.org/api/ip"
 IP_API_URL = "https://api.ipify.org?format=json"
 
 # Timeout Defaults (in seconds)
-BOOTSTRAP_TIMEOUT_SECONDS = 60
+BOOTSTRAP_TIMEOUT_SECONDS = 90
 COMMAND_TIMEOUT_SECONDS = 15
 HTTP_PROXY_TIMEOUT_SECONDS = 30
 

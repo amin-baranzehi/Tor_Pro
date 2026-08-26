@@ -20,6 +20,7 @@ from torpro.core.constants import (
     SOCKS5_PORT,
     TOR_LOG_FILE,
 )
+from torpro.core.exceptions import ConfigError
 from torpro.core.logger import Logger
 from torpro.diagnostics.engine import DiagnosticEngine
 from torpro.proxy.http_bridge import HttpBridgeService
@@ -140,9 +141,9 @@ class TuiDashboard:
         """Prompt user for bridge selection."""
         self.clear_screen()
         Logger.print_banner()
-        print("  [1] Snowflake   (WebRTC Ephemeral Proxies - Recommended)")
-        print("  [2] WebTunnel   (HTTPS Traffic Masking)")
-        print("  [3] Obfs4       (Obfuscated Bridge IPs)")
+        print("  [1] Snowflake   (WebRTC Ephemeral Proxies - Recommended for Iran)")
+        print("  [2] WebTunnel   (HTTPS Traffic Masking - Requires WebTunnel bridge)")
+        print("  [3] Obfs4       (Obfuscated Bridge IPs - Requires Obfs4 bridge)")
         print("  [4] Direct      (No Bridge / Direct Tor Network)")
         print("  [0] Back")
 
@@ -150,8 +151,46 @@ class TuiDashboard:
         modes = {"1": "snowflake", "2": "webtunnel", "3": "obfs4", "4": "direct"}
         selected_mode = modes.get(sub_choice)
 
-        if selected_mode:
+        if not selected_mode:
+            return
+
+        # If user selected WebTunnel or Obfs4, check if bridges exist
+        if selected_mode in ("webtunnel", "obfs4"):
+            has_bridges = False
+            if CUSTOM_BRIDGES_FILE.exists():
+                content = CUSTOM_BRIDGES_FILE.read_text(encoding="utf-8")
+                has_bridges = any(selected_mode in line.lower() for line in content.splitlines() if line.strip() and not line.startswith("#"))
+
+            if not has_bridges:
+                print(f"\n{AnsiColor.BRIGHT_YELLOW}Notice: No {selected_mode.upper()} bridge lines found in config/custom_bridges.txt.{AnsiColor.RESET}")
+                print(f"You can obtain fresh bridges from Telegram bot: {AnsiColor.BRIGHT_CYAN}@GetBridgesBot{AnsiColor.RESET} or {AnsiColor.BRIGHT_CYAN}https://bridges.torproject.org{AnsiColor.RESET}")
+                prompt = input(f"\n{AnsiColor.BOLD}Would you like to enter your bridge line(s) now? [y/N]: {AnsiColor.RESET}").strip().lower()
+                if prompt in ("y", "yes"):
+                    print(f"\n{AnsiColor.BOLD}Paste your bridge lines below (Press Enter on an empty line when done):{AnsiColor.RESET}")
+                    new_lines = []
+                    while True:
+                        try:
+                            l = input()
+                            if not l.strip():
+                                break
+                            new_lines.append(l.strip())
+                        except (KeyboardInterrupt, EOFError):
+                            break
+                    if new_lines:
+                        BridgeManager.save_custom_bridges(new_lines)
+                    else:
+                        print(f"{AnsiColor.DIM}No bridges entered. Returning.{AnsiColor.RESET}")
+                        self.pause()
+                        return
+                else:
+                    print(f"\n{AnsiColor.DIM}Tip: Use Snowflake (Option [1]) which does not require static bridges.{AnsiColor.RESET}")
+                    self.pause()
+                    return
+
+        try:
             self.service.start(mode=selected_mode, enable_http_bridge=True)
+        except ConfigError as err:
+            Logger.error(str(err))
         self.pause()
 
     def _handle_stop(self) -> None:
@@ -192,6 +231,7 @@ class TuiDashboard:
         """Manage custom bridges file."""
         self.clear_screen()
         Logger.print_banner()
+        print("  Manage Custom Bridges (config/custom_bridges.txt)\n")
         if CUSTOM_BRIDGES_FILE.exists():
             print(f"{AnsiColor.BOLD}Current Bridge Lines:{AnsiColor.RESET}")
             content = CUSTOM_BRIDGES_FILE.read_text(encoding="utf-8").strip()

@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from torpro.bridges.base import BaseBridgeStrategy
 from torpro.core.constants import CUSTOM_BRIDGES_FILE
+from torpro.core.exceptions import ConfigError
 
 
 class Obfs4Strategy(BaseBridgeStrategy):
@@ -31,7 +32,7 @@ class Obfs4Strategy(BaseBridgeStrategy):
             content = CUSTOM_BRIDGES_FILE.read_text(encoding="utf-8")
             for line in content.splitlines():
                 line = line.strip()
-                if line and not line.startswith("#"):
+                if line and not line.startswith("#") and "obfs4" in line:
                     if not line.startswith("Bridge "):
                         line = f"Bridge {line}"
                     bridges.append(line)
@@ -41,16 +42,19 @@ class Obfs4Strategy(BaseBridgeStrategy):
         """Produce torrc lines for Obfs4."""
         bridges = self._load_bridges()
 
+        if not bridges:
+            raise ConfigError(
+                "No Obfs4 bridge lines found in config/custom_bridges.txt!\n"
+                "  -> To use Obfs4, please obtain fresh bridge lines (e.g. from https://bridges.torproject.org "
+                "or Telegram @GetBridgesBot) and add them via Menu Option [7].\n"
+                "  -> Alternatively, use Snowflake (Option [1]) which does not require static bridge lines."
+            )
+
         lines = [
             "# === Obfs4 Pluggable Transport Configuration ===",
             "UseBridges 1",
             "ClientTransportPlugin obfs4 exec ./bin/lyrebird",
             "",
         ]
-
-        if bridges:
-            lines.extend(bridges)
-        else:
-            lines.append("# [WARNING] No obfs4 bridges specified in config/custom_bridges.txt")
-
+        lines.extend(bridges)
         return lines
