@@ -48,7 +48,7 @@ class SnowflakeStrategy(BaseBridgeStrategy):
         """Produce torrc lines for Snowflake optimized for Iran."""
         ice_servers = ",".join(self.DEFAULT_STUN_SERVERS)
         plugin_exec = (
-            f"ClientTransportPlugin snowflake exec ./bin/snowflake-client "
+            f"ClientTransportPlugin snowflake exec {SNOWFLAKE_BIN.as_posix()} "
             f"-url {self.BROKER_URL} "
             f"-front {self.FRONT_DOMAIN} "
             f"-ampcache {self.AMP_CACHE} "

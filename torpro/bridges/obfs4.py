@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from torpro.bridges.base import BaseBridgeStrategy
-from torpro.core.constants import CUSTOM_BRIDGES_FILE
+from torpro.core.constants import CUSTOM_BRIDGES_FILE, LYREBIRD_BIN
 from torpro.core.exceptions import ConfigError
 
 
@@ -53,7 +53,7 @@ class Obfs4Strategy(BaseBridgeStrategy):
         lines = [
             "# === Obfs4 Pluggable Transport Configuration ===",
             "UseBridges 1",
-            "ClientTransportPlugin obfs4 exec ./bin/lyrebird",
+            f"ClientTransportPlugin obfs4 exec {LYREBIRD_BIN.as_posix()}",
             "",
         ]
         lines.extend(bridges)

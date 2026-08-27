@@ -284,6 +284,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     """Main CLI entry point with graceful interrupt handling."""
+    import os
+    if os.geteuid() != 0:
+        print(f"{AnsiColor.BRIGHT_RED}{AnsiColor.BOLD}[ERROR] Tor Pro requires root privileges. Please run with sudo: sudo torpro <command>{AnsiColor.RESET}")
+        return 1
+
     try:
         parser = build_parser()
         args = parser.parse_args()

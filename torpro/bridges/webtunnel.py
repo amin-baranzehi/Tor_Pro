@@ -6,7 +6,7 @@ WebTunnel mimics standard HTTPS web browsing traffic to bypass Deep Packet Inspe
 from typing import List, Optional
 
 from torpro.bridges.base import BaseBridgeStrategy
-from torpro.core.constants import CUSTOM_BRIDGES_FILE
+from torpro.core.constants import CUSTOM_BRIDGES_FILE, LYREBIRD_BIN
 from torpro.core.exceptions import ConfigError
 
 
@@ -55,7 +55,7 @@ class WebTunnelStrategy(BaseBridgeStrategy):
         lines = [
             "# === WebTunnel Pluggable Transport Configuration ===",
             "UseBridges 1",
-            "ClientTransportPlugin webtunnel exec ./bin/lyrebird",
+            f"ClientTransportPlugin webtunnel exec {LYREBIRD_BIN.as_posix()}",
             "",
         ]
         lines.extend(bridges)

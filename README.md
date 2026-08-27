@@ -90,9 +90,9 @@ sudo ./install.sh
 
 ### 3. Launch Interactive Menu
 ```bash
-torpro
+sudo torpro
 # or locally:
-./menu.sh
+sudo ./menu.sh
 ```
 
 ---
@@ -101,23 +101,23 @@ torpro
 
 | Command | Description |
 | :--- | :--- |
-| `torpro` | Launch the interactive TUI dashboard |
-| `torpro start snowflake` | Start Tor with Snowflake (Iran-optimized) |
-| `torpro start webtunnel` | Start Tor with WebTunnel transport |
-| `torpro start obfs4` | Start Tor with Obfs4 transport |
-| `torpro start direct` | Start Tor without bridges |
-| `torpro stop` | Stop Tor daemon and HTTP proxy server |
-| `torpro restart [mode]` | Restart Tor service with selected transport |
-| `torpro status` | Display status of Tor, HTTP proxy, and system proxy |
-| `torpro rotate` / `torpro newip` | Request a new IP address / circuit right now |
-| `torpro autorotate [seconds]` | Periodically rotate IP address every N seconds (e.g. `torpro autorotate 30`) |
-| `torpro doctor` | Execute 5 pre-flight diagnostic health checks |
-| `torpro fetch obfs4` | Auto-fetch fresh Obfs4 bridges via unblocked relay |
-| `torpro fetch webtunnel` | Auto-fetch fresh WebTunnel bridges |
-| `torpro test` | Test Tor network connectivity and display Exit IP |
-| `torpro proxy on` | Enable GNOME desktop system proxy |
-| `torpro proxy off` | Disable GNOME desktop system proxy |
-| `torpro logs` | Tail live Tor connection logs |
+| `sudo torpro` | Launch the interactive TUI dashboard |
+| `sudo torpro start snowflake` | Start Tor with Snowflake (Iran-optimized) |
+| `sudo torpro start webtunnel` | Start Tor with WebTunnel transport |
+| `sudo torpro start obfs4` | Start Tor with Obfs4 transport |
+| `sudo torpro start direct` | Start Tor without bridges |
+| `sudo torpro stop` | Stop Tor daemon and HTTP proxy server |
+| `sudo torpro restart [mode]` | Restart Tor service with selected transport |
+| `sudo torpro status` | Display status of Tor, HTTP proxy, and system proxy |
+| `sudo torpro rotate` / `sudo torpro newip` | Request a new IP address / circuit right now |
+| `sudo torpro autorotate [seconds]` | Periodically rotate IP address every N seconds (e.g. `sudo torpro autorotate 30`) |
+| `sudo torpro doctor` | Execute 5 pre-flight diagnostic health checks |
+| `sudo torpro fetch obfs4` | Auto-fetch fresh Obfs4 bridges via unblocked relay |
+| `sudo torpro fetch webtunnel` | Auto-fetch fresh WebTunnel bridges |
+| `sudo torpro test` | Test Tor network connectivity and display Exit IP |
+| `sudo torpro proxy on` | Enable GNOME desktop system proxy |
+| `sudo torpro proxy off` | Disable GNOME desktop system proxy |
+| `sudo torpro logs` | Tail live Tor connection logs |
 
 ---
 
