@@ -79,23 +79,41 @@ for rc in "$REAL_HOME/.bashrc" "$REAL_HOME/.profile" "$REAL_HOME/.zshrc"; do
     fi
 done
 
-# 3. Desktop Application Entry & Icon
-echo -e "\n${BOLD}[3/3] Creating Desktop Application Shortcut & Icon...${RESET}"
+# 3. Desktop Application Entry & Multi-Resolution Icon Set
+echo -e "\n${BOLD}[3/3] Creating Desktop Application Shortcut & Icon Theme Integration...${RESET}"
 ICON_DIR="$REAL_HOME/.local/share/icons"
 DESKTOP_DIR="$REAL_HOME/.local/share/applications"
-mkdir -p "$ICON_DIR" "$DESKTOP_DIR"
+PIXMAPS_DIR="$REAL_HOME/.local/share/pixmaps"
+mkdir -p "$ICON_DIR" "$DESKTOP_DIR" "$PIXMAPS_DIR"
 
+LOGO_FILE=""
 if [ -f "$DIR/image/logo.png" ]; then
-    cp "$DIR/image/logo.png" "$ICON_DIR/torpro.png"
-    mkdir -p "$ICON_DIR/hicolor/512x512/apps"
-    cp "$DIR/image/logo.png" "$ICON_DIR/hicolor/512x512/apps/torpro.png"
-    chown -R "$REAL_USER:$REAL_USER" "$ICON_DIR" 2>/dev/null || true
-    gtk-update-icon-cache -f -t "$ICON_DIR/hicolor" 2>/dev/null || true
+    LOGO_FILE="$DIR/image/logo.png"
 elif [ -f "$DIR/logo.png" ]; then
-    cp "$DIR/logo.png" "$ICON_DIR/torpro.png"
-    mkdir -p "$ICON_DIR/hicolor/512x512/apps"
-    cp "$DIR/logo.png" "$ICON_DIR/hicolor/512x512/apps/torpro.png"
-    chown -R "$REAL_USER:$REAL_USER" "$ICON_DIR" 2>/dev/null || true
+    LOGO_FILE="$DIR/logo.png"
+fi
+
+if [ -n "$LOGO_FILE" ]; then
+    # Generate standard icon sizes for GNOME / GTK theme engine
+    python3 -c "
+import os
+try:
+    from PIL import Image
+    src = '$LOGO_FILE'
+    base = '$ICON_DIR/hicolor'
+    sizes = [16, 24, 32, 48, 64, 96, 128, 256, 512]
+    img = Image.open(src)
+    for s in sizes:
+        td = os.path.join(base, f'{s}x{s}', 'apps')
+        os.makedirs(td, exist_ok=True)
+        img.resize((s, s), Image.Resampling.LANCZOS).save(os.path.join(td, 'torpro.png'), 'PNG')
+except Exception:
+    pass
+" 2>/dev/null || true
+
+    cp "$LOGO_FILE" "$ICON_DIR/torpro.png" 2>/dev/null || true
+    cp "$LOGO_FILE" "$PIXMAPS_DIR/torpro.png" 2>/dev/null || true
+    chown -R "$REAL_USER:$REAL_USER" "$ICON_DIR" "$PIXMAPS_DIR" 2>/dev/null || true
     gtk-update-icon-cache -f -t "$ICON_DIR/hicolor" 2>/dev/null || true
 fi
 
@@ -104,7 +122,7 @@ cat << EOF > "$DESKTOP_DIR/torpro.desktop"
 Name=Tor Pro
 Comment=Professional Standalone Tor Suite
 Exec=$USER_LOCAL_BIN/torpro menu
-Icon=$ICON_DIR/torpro.png
+Icon=torpro
 Terminal=true
 Type=Application
 Categories=Network;Security;
@@ -113,6 +131,7 @@ EOF
 chmod +x "$DESKTOP_DIR/torpro.desktop"
 chown -R "$REAL_USER:$REAL_USER" "$DESKTOP_DIR/torpro.desktop" 2>/dev/null || true
 update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+touch "$DESKTOP_DIR/torpro.desktop"
 echo -e "${GREEN}[OK] Created desktop shortcut with custom logo: $DESKTOP_DIR/torpro.desktop${RESET}"
 
 echo -e "\n${GREEN}${BOLD}========================================================================${RESET}"

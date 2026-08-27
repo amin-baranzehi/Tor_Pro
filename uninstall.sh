@@ -14,7 +14,7 @@ echo -e "${YELLOW}${BOLD}Uninstalling Tor Pro global launcher...${RESET}"
 rm -f "$HOME/.local/bin/torpro"
 rm -f "$HOME/.local/share/applications/torpro.desktop"
 rm -f "$HOME/.local/share/icons/torpro.png"
-rm -f "$HOME/.local/share/icons/hicolor/512x512/apps/torpro.png"
+rm -f "$HOME/.local/share/icons/hicolor"/*/apps/torpro.png 2>/dev/null || true
 rm -f "$HOME/.local/share/pixmaps/torpro.png"
 gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
