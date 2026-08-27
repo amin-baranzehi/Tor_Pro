@@ -1,19 +1,20 @@
-# Tor Pro
+<div align="center">
 
-```text
-  _______ ____  _____    _____  _____   ____  
- |__   __/ __ \|  __ \  |  __ \|  __ \ / __ \ 
-    | | | |  | | |__) | | |__) | |__) | |  | |
-    | | | |  | |  _  /  |  ___/|  _  /| |  | |
-    | | | |__| | | \ \  | |    | | \ \| |__| |
-    |_|  \____/|_|  \_\ |_|    |_|  \_\\____/ 
-========================================================================
-  Tor Pro - Professional Anti-Censorship Tor Suite [v2.0.0]
-  Author: amin.baranzehi_ | Advanced Privacy & Security Framework
-========================================================================
-```
+<img src="image/banner.webp" alt="Tor Pro - Advanced Anonymous Routing Network" width="100%" />
 
-**Tor Pro** is an enterprise-grade, standalone, zero-dependency Tor circumvention suite for Linux tailored for severe censorship environments. It provides out-of-the-box support for modern pluggable transports (**Snowflake**, **WebTunnel**, **Obfs4**), an automated online **Bridge Fetcher** that bypasses BridgeDB domain censorship, a built-in **HTTP-to-SOCKS5** dual proxy engine, an automated **IP Rotator (SIGNAL NEWNYM)**, 5 pre-flight diagnostic health checks (**Doctor Suite**), and an interactive **TUI Dashboard**.
+# Tor Pro — Advanced Anti-Censorship Suite
+
+**Enterprise-grade, standalone, zero-dependency Tor circumvention suite for Linux tailored for severe censorship environments.**
+
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg?style=for-the-badge)](https://github.com/amin-baranzehi/Tor_Pro)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Platform](https://img.shields.io/badge/Platform-Linux-orange.svg?style=for-the-badge&logo=linux&logoColor=white)](https://kernel.org)
+[![License](https://img.shields.io/badge/License-MIT-purple.svg?style=for-the-badge)](LICENSE)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20External%20Pip-success.svg?style=for-the-badge)]()
+
+[Features](#what-we-have-in-tor-pro-full-feature-breakdown) • [Quick Start](#quick-start-guide) • [CLI Reference](#complete-cli-reference) • [Architecture](#project-directory-structure)
+
+</div>
 
 ---
 
@@ -123,7 +124,12 @@ torpro
 ## Project Directory Structure
 
 ```text
-Portable-Tor/
+Tor-Pro/
+├── image/                     # Media & asset repository (Banners, Logos, Icons)
+│   ├── banner.webp            # GitHub repository wide banner (2816x1536)
+│   ├── logo.png               # High-resolution application icon (1024x1024)
+│   ├── logo.webp              # WebP optimized logo (1024x1024)
+│   └── logo.ico               # application icon
 ├── bin/                       # Standalone binaries & shared libraries
 │   ├── tor                    # Tor core binary
 │   ├── snowflake-client       # Snowflake pluggable transport
@@ -148,7 +154,7 @@ Portable-Tor/
 │   ├── test_proxy.py
 │   └── test_service.py
 ├── setup.sh                   # Automated binary setup script
-├── install.sh                 # Global system installer
+├── install.sh                 # Global system installer (with desktop icon setup)
 ├── uninstall.sh               # Global uninstaller
 ├── tor.sh                     # CLI launcher script
 ├── menu.sh                    # TUI menu launcher script

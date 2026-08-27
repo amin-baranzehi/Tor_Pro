@@ -79,17 +79,32 @@ for rc in "$REAL_HOME/.bashrc" "$REAL_HOME/.profile" "$REAL_HOME/.zshrc"; do
     fi
 done
 
-# 3. Desktop Application Entry
-echo -e "\n${BOLD}[3/3] Creating Desktop Application Shortcut...${RESET}"
+# 3. Desktop Application Entry & Icon
+echo -e "\n${BOLD}[3/3] Creating Desktop Application Shortcut & Icon...${RESET}"
+ICON_DIR="$REAL_HOME/.local/share/icons"
 DESKTOP_DIR="$REAL_HOME/.local/share/applications"
-mkdir -p "$DESKTOP_DIR"
+mkdir -p "$ICON_DIR" "$DESKTOP_DIR"
+
+if [ -f "$DIR/image/logo.png" ]; then
+    cp "$DIR/image/logo.png" "$ICON_DIR/torpro.png"
+    mkdir -p "$ICON_DIR/hicolor/512x512/apps"
+    cp "$DIR/image/logo.png" "$ICON_DIR/hicolor/512x512/apps/torpro.png"
+    chown -R "$REAL_USER:$REAL_USER" "$ICON_DIR" 2>/dev/null || true
+    gtk-update-icon-cache -f -t "$ICON_DIR/hicolor" 2>/dev/null || true
+elif [ -f "$DIR/logo.png" ]; then
+    cp "$DIR/logo.png" "$ICON_DIR/torpro.png"
+    mkdir -p "$ICON_DIR/hicolor/512x512/apps"
+    cp "$DIR/logo.png" "$ICON_DIR/hicolor/512x512/apps/torpro.png"
+    chown -R "$REAL_USER:$REAL_USER" "$ICON_DIR" 2>/dev/null || true
+    gtk-update-icon-cache -f -t "$ICON_DIR/hicolor" 2>/dev/null || true
+fi
 
 cat << EOF > "$DESKTOP_DIR/torpro.desktop"
 [Desktop Entry]
 Name=Tor Pro
 Comment=Professional Standalone Tor Suite
 Exec=$USER_LOCAL_BIN/torpro menu
-Icon=security-high
+Icon=$ICON_DIR/torpro.png
 Terminal=true
 Type=Application
 Categories=Network;Security;
@@ -97,7 +112,8 @@ EOF
 
 chmod +x "$DESKTOP_DIR/torpro.desktop"
 chown -R "$REAL_USER:$REAL_USER" "$DESKTOP_DIR/torpro.desktop" 2>/dev/null || true
-echo -e "${GREEN}[OK] Created desktop shortcut: $DESKTOP_DIR/torpro.desktop${RESET}"
+update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+echo -e "${GREEN}[OK] Created desktop shortcut with custom logo: $DESKTOP_DIR/torpro.desktop${RESET}"
 
 echo -e "\n${GREEN}${BOLD}========================================================================${RESET}"
 echo -e "${GREEN}${BOLD}Tor Pro has been successfully installed globally!${RESET}"
