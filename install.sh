@@ -38,6 +38,17 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo -e "${BOLD}[1/4] Installing Tor Pro to /opt/torpro...${RESET}"
+
+# Identify calling user to clean up their old local installation
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6 || echo "$HOME")
+
+# Cleanup old local installation if it exists
+rm -f "$REAL_HOME/.local/bin/torpro"
+rm -f "$REAL_HOME/.local/share/applications/torpro.desktop"
+rm -f "$REAL_HOME/.local/share/icons/torpro.png"
+rm -f "$REAL_HOME/.local/share/pixmaps/torpro.png"
+
 mkdir -p /opt/torpro
 cp -r "$DIR/"* /opt/torpro/
 
